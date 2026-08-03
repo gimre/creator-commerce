@@ -3,6 +3,15 @@ import { z } from 'zod'
 import { productStatus } from '@/lib/server/db/schemas/product'
 
 /**
+ * How many images one product can hold, in total.
+ *
+ * The upload endpoint's own `maxFileCount` only caps a single batch, so without
+ * this a user could append four at a time forever. Enforced in the endpoint's
+ * middleware and, as a race backstop, in the DAL's append query.
+ */
+export const MAX_PRODUCT_IMAGES = 8
+
+/**
  * Validates the fields a user submits when creating a product.
  *
  * Shared between the client form and the server action, so it validates the

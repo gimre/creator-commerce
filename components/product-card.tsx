@@ -1,59 +1,85 @@
 import Link from "next/link"
-import { AudioLines, FileText, Package, type LucideIcon } from "lucide-react"
+import Image from "next/image"
 
-import type { StoreProduct } from "@/lib/mock-data"
-import { Badge } from "@/components/ui/badge"
-import { cn } from "@/lib/utils"
-
-const TYPE_ICONS: Record<string, LucideIcon> = {
-  ZIP: Package,
-  PDF: FileText,
-  Audio: AudioLines,
-}
+import { ProductImagePlaceholder } from "@/components/product-image-placeholder"
+import { cn, formatPrice } from "@/lib/utils"
 
 export function ProductCover({
-  type,
-  cover,
+  images,
+  alt,
   className,
   iconClassName,
+  sizes,
+  priority,
 }: {
-  type: string
-  cover: string
+  images: string[]
+  alt: string
   className?: string
   iconClassName?: string
+  sizes?: string
+  priority?: boolean
 }) {
-  const Icon = TYPE_ICONS[type] ?? Package
+  const [cover] = images
+  const frame = cn("aspect-[3/2]", className)
+
+  if (!cover) {
+    return (
+      <ProductImagePlaceholder className={frame} iconClassName={iconClassName} />
+    )
+  }
+
   return (
-    <div
-      className={cn(
-        "flex aspect-[3/2] items-center justify-center text-muted-foreground",
-        className
-      )}
-      style={{
-        background: `linear-gradient(135deg, ${cover}, color-mix(in oklch, ${cover}, black 8%))`,
-      }}
-    >
-      <Icon className={cn("size-[26px]", iconClassName)} />
+    <div className={cn("relative bg-muted", frame)}>
+      <Image
+        src={cover}
+        alt={alt}
+        fill
+        sizes={sizes ?? "(max-width: 768px) 100vw, 360px"}
+        priority={priority}
+        className="object-cover"
+      />
     </div>
   )
 }
 
-export function ProductCard({ product }: { product: StoreProduct }) {
+// Only what the card actually renders, rather than the full product row — so
+// screens without live data yet (the wishlist placeholder) can still use it.
+export type ProductCardProduct = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  priceInCents: number
+  currency: string
+  images: string[]
+}
+
+export function ProductCard({
+  product,
+  handle,
+}: {
+  product: ProductCardProduct
+  // Seller handle without the leading "@"; the link adds it back.
+  handle: string
+}) {
   return (
     <Link
-      href={`/${product.handle}/${product.id}/${product.slug}`}
+      href={`/@${handle}/${product.id}/${product.slug}`}
       className="flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/15"
     >
-      <ProductCover type={product.type} cover={product.cover} />
+      <ProductCover images={product.images} alt={product.name} />
       <div className="flex flex-1 flex-col gap-1.5 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <span className="font-heading text-[15px] font-medium">{product.name}</span>
-          <Badge variant="outline">{product.type}</Badge>
-        </div>
-        <p className="flex-1 text-[13px] leading-normal text-muted-foreground">
-          {product.blurb}
-        </p>
-        <span className="mt-1 font-mono text-base font-medium">{product.price}</span>
+        <span className="font-heading text-[15px] font-medium">
+          {product.name}
+        </span>
+        {product.description && (
+          <p className="flex-1 line-clamp-2 text-[13px] leading-normal text-muted-foreground">
+            {product.description}
+          </p>
+        )}
+        <span className="mt-1 font-mono text-base font-medium">
+          {formatPrice(product.priceInCents, product.currency)}
+        </span>
       </div>
     </Link>
   )

@@ -29,6 +29,7 @@ export default async function EditProductPage({
     <ProductForm
       action={updateProductAction.bind(null, id)}
       productId={product.id}
+      images={product.images}
       product={{
         name: product.name,
         description: product.description ?? "",

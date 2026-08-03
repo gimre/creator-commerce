@@ -17,6 +17,12 @@ export function slugify(name: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+// "%40gabi" / "@gabi" -> "gabi". The [handle] URL segment carries a leading
+// "@", the user.handle column stores it without one.
+export function parseHandleSegment(segment: string) {
+  return decodeURIComponent(segment).replace(/^@/, "")
+}
+
 // Cents + ISO currency code -> "$29.00". Prices are stored in cents.
 export function formatPrice(priceInCents: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(

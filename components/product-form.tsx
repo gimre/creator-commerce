@@ -10,6 +10,7 @@ import { ChevronLeft, Trash2 } from "lucide-react"
 import type { ProductFormState } from "@/lib/actions/products"
 import { createProductSchema } from "@/lib/schemas/product"
 import { DeleteProductButton } from "@/components/delete-product-button"
+import { ProductImages } from "@/components/product-images"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -35,12 +36,15 @@ export function ProductForm({
   action,
   product,
   productId,
+  images = [],
 }: {
   action: ProductFormAction
   // Prefill/display values for the edit case, in the client-safe form shape.
   product?: FormValues
-  // Present only when editing an existing product; enables the delete button.
+  // Present only when editing an existing product; enables the delete button
+  // and image uploads.
   productId?: number
+  images?: string[]
 }) {
   const isNew = !product
   const [state, formAction, isPending] = useActionState(action, {})
@@ -187,6 +191,12 @@ export function ProductForm({
           </div>
         </CardContent>
       </Card>
+
+      {/* Uploads attach to an existing row, so this only appears once the
+          product has an id. New products get images after the first save. */}
+      {productId != null && (
+        <ProductImages productId={productId} images={images} />
+      )}
     </form>
   )
 }

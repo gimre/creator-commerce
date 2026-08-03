@@ -1,0 +1,56 @@
+import 'server-only'
+
+import { revalidatePath } from 'next/cache'
+import { createUploadthing, type FileRouter } from 'uploadthing/next'
+import { UploadThingError } from 'uploadthing/server'
+import { z } from 'zod'
+
+import { MAX_PRODUCT_IMAGES } from '@/lib/schemas/product'
+import { addProductImages, getUserProduct } from '@/lib/server/dal/products'
+import { revalidateStorefront } from '@/lib/server/revalidate'
+import { getUser } from '@/lib/server/session'
+
+const f = createUploadthing()
+
+export const uploadRouter = {
+  productImage: f({ image: { maxFileSize: '4MB', maxFileCount: 4 } })
+    .input(z.object({ productId: z.number().int().positive() }))
+    // Runs before the upload is authorized — throwing here rejects it, so no
+    // bytes ever leave the browser for a request that would not be persisted.
+    .middleware(async ({ input, files }) => {
+      // getUser(), not requireUser(): a redirect is the wrong response shape
+      // for an upload endpoint.
+      const user = await getUser()
+      if (!user) throw new UploadThingError('Unauthorized')
+
+      // Ownership is checked up front, so a guessed productId can never have
+      // files attached to it.
+      const product = await getUserProduct(input.productId, user.id)
+      if (!product) throw new UploadThingError('Product not found')
+
+      // maxFileCount only bounds this batch, so the product-wide ceiling has to
+      // be checked here. The whole batch is rejected rather than partly
+      // accepted, so the user is never left guessing which files made it.
+      if (product.images.length + files.length > MAX_PRODUCT_IMAGES) {
+        const remaining = MAX_PRODUCT_IMAGES - product.images.length
+        throw new UploadThingError(
+          remaining === 0
+            ? `This product already has ${MAX_PRODUCT_IMAGES} images`
+            : `Only ${remaining} more image${remaining === 1 ? '' : 's'} allowed`,
+        )
+      }
+
+      return { ownerId: user.id, productId: product.id }
+    })
+    // Fires once per file, from UploadThing's servers.
+    .onUploadComplete(async ({ metadata, file }) => {
+      // ufsUrl, not url/appUrl — those are deprecated and go away in v9.
+      await addProductImages(metadata.productId, metadata.ownerId, [file.ufsUrl])
+      revalidatePath(`/products/${metadata.productId}`)
+      revalidateStorefront()
+
+      return { url: file.ufsUrl }
+    }),
+} satisfies FileRouter
+
+export type UploadRouter = typeof uploadRouter

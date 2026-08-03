@@ -9,6 +9,7 @@ import {
   deleteUserProduct,
   updateUserProduct,
 } from '@/lib/server/dal/products'
+import { revalidateStorefront } from '@/lib/server/revalidate'
 import { requireUser } from '@/lib/server/session'
 import { createProductSchema } from '@/lib/schemas/product'
 
@@ -41,6 +42,7 @@ export async function createProductAction(
   })
 
   revalidatePath('/products')
+  revalidateStorefront()
   redirect(`/products`)
 }
 
@@ -86,6 +88,7 @@ export async function updateProductAction(
 
   revalidatePath('/products')
   revalidatePath(`/products/${productId}`)
+  revalidateStorefront()
   redirect('/products')
 }
 
@@ -96,6 +99,7 @@ export async function deleteProductAction(id: string): Promise<void> {
   if (Number.isInteger(productId)) {
     await deleteUserProduct(productId, user.id)
     revalidatePath('/products')
+    revalidateStorefront()
   }
 
   redirect('/products')

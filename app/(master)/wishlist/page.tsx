@@ -1,8 +1,5 @@
 import type { Metadata } from "next"
 
-import { storeProducts } from "@/lib/mock-data"
-import { ProductCard } from "@/components/product-card"
-
 export const metadata: Metadata = {
   title: "Wishlist",
 }
@@ -16,11 +13,12 @@ export default function WishlistPage() {
           Products you saved from storefronts.
         </p>
       </div>
-      <div className="grid grid-cols-3 gap-5">
-        {storeProducts.slice(0, 3).map((product) => (
-          <ProductCard key={product.slug} product={product} />
-        ))}
-      </div>
+      {/* There is no wishlist table yet, so there is nothing to list. Showing
+          other sellers' products here would have implied a feature that the
+          Heart buttons on the storefront don't actually do anything for. */}
+      <p className="py-8 text-center text-muted-foreground">
+        Nothing saved yet.
+      </p>
     </div>
   )
 }

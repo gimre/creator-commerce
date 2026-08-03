@@ -16,6 +16,8 @@ export const productsTable = pgTable(
     // Derived from name. Decorative only — lookups go through id.
     slug: varchar({ length: 255 }).notNull(),
     description: text(),
+    // UploadThing ufsUrl per image. Order is display order; first is the cover.
+    images: text().array().notNull().default([]),
     // Cents, so Stripe and the DB agree and no decimal rounding creeps in.
     priceInCents: integer('price_in_cents').notNull(),
     currency: varchar({ length: 3 }).notNull().default('USD'),

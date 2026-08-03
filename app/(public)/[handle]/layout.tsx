@@ -1,9 +1,18 @@
-import { StorefrontShell } from "@/components/layouts/storefront-shell"
+import { notFound } from "next/navigation"
 
-export default function StorefrontLayout({
+import { getUserByHandle } from "@/lib/server/dal/users"
+import { StorefrontShell } from "@/components/layouts/storefront-shell"
+import { parseHandleSegment } from "@/lib/utils"
+
+export default async function StorefrontLayout({
+  params,
   children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
-  return <StorefrontShell>{children}</StorefrontShell>
+}: LayoutProps<"/[handle]">) {
+  const { handle } = await params
+  const seller = await getUserByHandle(parseHandleSegment(handle))
+  if (!seller) {
+    notFound()
+  }
+
+  return <StorefrontShell seller={seller}>{children}</StorefrontShell>
 }

@@ -15,6 +15,13 @@
       "when": 1784740329104,
       "tag": "0001_empty_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785773090764,
+      "tag": "0002_chemical_archangel",
+      "breakpoints": true
     }
   ]
 }

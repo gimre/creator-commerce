@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    // UploadThing serves files from https://<appId>.ufs.sh/f/<key>.
+    remotePatterns: [{ protocol: "https", hostname: "**.ufs.sh" }],
+  },
 };
 
 export default nextConfig;
