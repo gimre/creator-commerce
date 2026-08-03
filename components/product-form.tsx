@@ -1,9 +1,17 @@
-import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+"use client"
 
-import type { MockProduct } from "@/lib/mock-data"
+import { useActionState, useEffect, startTransition } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import type { z } from "zod"
+import Link from "next/link"
+import { ChevronLeft, Trash2 } from "lucide-react"
+
+import type { ProductFormState } from "@/lib/actions/products"
+import { createProductSchema } from "@/lib/schemas/product"
+import { DeleteProductButton } from "@/components/delete-product-button"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -14,10 +22,70 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-export function ProductForm({ product }: { product?: MockProduct }) {
+type ProductFormAction = (
+  state: ProductFormState,
+  formData: FormData,
+) => Promise<ProductFormState>
+
+// Form binds raw input (price as a string); the resolver coerces to output.
+type FormValues = z.input<typeof createProductSchema>
+type ProductStatus = z.output<typeof createProductSchema>["status"]
+
+export function ProductForm({
+  action,
+  product,
+  productId,
+}: {
+  action: ProductFormAction
+  // Prefill/display values for the edit case, in the client-safe form shape.
+  product?: FormValues
+  // Present only when editing an existing product; enables the delete button.
+  productId?: number
+}) {
   const isNew = !product
+  const [state, formAction, isPending] = useActionState(action, {})
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    setError,
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(createProductSchema),
+    defaultValues: {
+      name: product?.name ?? "",
+      description: product?.description ?? "",
+      price: product?.price ?? "",
+      status: product?.status ?? "draft",
+    },
+  })
+
+  // Surface server-side validation (e.g. rules the client can't check) back
+  // onto the fields.
+  useEffect(() => {
+    if (!state.fieldErrors) return
+    for (const [field, messages] of Object.entries(state.fieldErrors)) {
+      if (messages?.[0]) {
+        setError(field as keyof FormValues, { message: messages[0] })
+      }
+    }
+  }, [state.fieldErrors, setError])
+
+  function submitWith(status: ProductStatus) {
+    setValue("status", status)
+    return handleSubmit((values) => {
+      const formData = new FormData()
+      formData.set("name", values.name)
+      if (values.description) formData.set("description", values.description)
+      formData.set("price", String(values.price))
+      formData.set("status", status)
+      startTransition(() => formAction(formData))
+    })
+  }
+
   return (
-    <div className="mx-auto flex max-w-[960px] flex-col gap-5 p-6">
+    <form className="mx-auto flex max-w-[960px] flex-col gap-5 p-6" noValidate>
       <div>
         <Link
           href="/products"
@@ -30,19 +98,49 @@ export function ProductForm({ product }: { product?: MockProduct }) {
             {isNew ? "New product" : product.name}
           </h1>
           {!isNew && (
-            <Badge variant={product.status === "Published" ? "default" : "secondary"}>
-              {product.status === "Draft" && (
+            <Badge variant={product.status === "published" ? "default" : "secondary"}>
+              {product.status === "draft" && (
                 <span className="size-1.5 rounded-full bg-muted-foreground" />
               )}
-              {product.status}
+              {product.status === "published" ? "Published" : "Draft"}
             </Badge>
           )}
           <div className="flex-1" />
-          <Button variant="ghost">Discard</Button>
-          <Button variant="outline">Save draft</Button>
-          <Button>Publish</Button>
+          {!isNew && productId != null && (
+            <DeleteProductButton
+              productId={productId}
+              productName={product.name}
+              trigger={
+                <Button variant="destructive">
+                  <Trash2 /> Delete
+                </Button>
+              }
+            />
+          )}
+          <Link href="/products" className={buttonVariants({ variant: "ghost" })}>
+            Discard
+          </Link>
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={isPending}
+            onClick={submitWith("draft")}
+          >
+            Save draft
+          </Button>
+          <Button
+            type="submit"
+            disabled={isPending}
+            onClick={submitWith("published")}
+          >
+            Publish
+          </Button>
         </div>
       </div>
+
+      {state.formError && (
+        <p className="text-sm text-destructive">{state.formError}</p>
+      )}
 
       <Card>
         <CardHeader>
@@ -53,24 +151,42 @@ export function ProductForm({ product }: { product?: MockProduct }) {
             <Label htmlFor="name">Product name</Label>
             <Input
               id="name"
-              defaultValue={product?.name}
               placeholder="e.g. Lightroom Preset Pack"
+              aria-invalid={!!errors.name}
+              {...register("name")}
             />
+            {errors.name && (
+              <p className="text-sm text-destructive">{errors.name.message}</p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="price">Price (USD)</Label>
             <Input
               id="price"
-              defaultValue={product?.price.replace("$", "")}
               placeholder="29.00"
+              aria-invalid={!!errors.price}
+              {...register("price")}
             />
+            {errors.price && (
+              <p className="text-sm text-destructive">{errors.price.message}</p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="description">Description</Label>
-            <Textarea id="description" placeholder="Describe what buyers get…" />
+            <Textarea
+              id="description"
+              placeholder="Describe what buyers get…"
+              aria-invalid={!!errors.description}
+              {...register("description")}
+            />
+            {errors.description && (
+              <p className="text-sm text-destructive">
+                {errors.description.message}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
-    </div>
+    </form>
   )
 }

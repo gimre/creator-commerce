@@ -1,17 +1,11 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import {
-  AudioLines,
-  Copy,
-  FileText,
-  Package,
-  Pencil,
-  Plus,
-  Search,
-  type LucideIcon,
-} from "lucide-react"
+import { Copy, Pencil, Plus, Search, Trash2 } from "lucide-react"
 
-import { products } from "@/lib/mock-data"
+import { getUserProducts } from "@/lib/server/dal/products"
+import { requireUser } from "@/lib/server/session"
+import { formatPrice } from "@/lib/utils"
+import { DeleteProductButton } from "@/components/delete-product-button"
 import { TableCard } from "@/components/table-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,22 +27,27 @@ export const metadata: Metadata = {
   title: "Products",
 }
 
-const TYPE_ICONS: Record<string, LucideIcon> = {
-  ZIP: Package,
-  PDF: FileText,
-  Audio: AudioLines,
-}
-
 const FILTERS = ["All", "Published", "Draft"]
 
-export default function ProductsPage() {
+const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+})
+
+export default async function ProductsPage() {
+  const user = await requireUser()
+  const products = await getUserProducts(user.id)
+
+  const draftCount = products.filter((p) => p.status === "draft").length
+
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-4 p-6">
       <div className="flex items-end gap-3">
         <div>
           <h1 className="font-heading text-2xl font-medium tracking-[-0.02em]">Products</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {products.length} products · 3 drafts
+            {products.length} products · {draftCount} drafts
           </p>
         </div>
         <div className="flex-1" />
@@ -83,44 +82,42 @@ export default function ProductsPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Product</TableHead>
-            <TableHead>Type</TableHead>
             <TableHead className="text-right">Price</TableHead>
-            <TableHead className="text-right">Sold</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Updated</TableHead>
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {products.map((product) => {
-            const Icon = TYPE_ICONS[product.type]
-            return (
+          {products.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                No products yet.{" "}
+                <Link href="/products/new" className="text-foreground underline">
+                  Create your first one
+                </Link>
+                .
+              </TableCell>
+            </TableRow>
+          ) : (
+            products.map((product) => (
               <TableRow key={product.id}>
                 <TableCell className="font-medium">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                      <Icon className="size-4" />
-                    </span>
-                    <span className="max-w-[320px] truncate">{product.name}</span>
-                  </div>
+                  <span className="block max-w-[420px] truncate">{product.name}</span>
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {formatPrice(product.priceInCents, product.currency)}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{product.type}</Badge>
-                </TableCell>
-                <TableCell className="text-right font-mono">{product.price}</TableCell>
-                <TableCell className="text-right font-mono text-muted-foreground">
-                  {product.sold}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={product.status === "Published" ? "default" : "secondary"}>
-                    {product.status === "Draft" && (
+                  <Badge variant={product.status === "published" ? "default" : "secondary"}>
+                    {product.status === "draft" && (
                       <span className="size-1.5 rounded-full bg-muted-foreground" />
                     )}
-                    {product.status}
+                    {product.status === "published" ? "Published" : "Draft"}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-[13px] text-muted-foreground">
-                  {product.updated}
+                  {DATE_FORMAT.format(product.updatedAt)}
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
@@ -149,11 +146,28 @@ export default function ProductsPage() {
                       />
                       <TooltipContent>Duplicate</TooltipContent>
                     </Tooltip>
+                    <Tooltip>
+                      <DeleteProductButton
+                        productId={product.id}
+                        productName={product.name}
+                        trigger={
+                          <TooltipTrigger
+                            render={
+                              <Button variant="ghost" size="icon-sm">
+                                <Trash2 className="size-3.5" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
+                            }
+                          />
+                        }
+                      />
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
                   </div>
                 </TableCell>
               </TableRow>
-            )
-          })}
+            ))
+          )}
         </TableBody>
       </TableCard>
 

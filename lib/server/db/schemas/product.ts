@@ -25,6 +25,8 @@ export const productsTable = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
+    // Soft-delete tombstone: null = live, set = deleted. Reads filter it out.
+    deletedAt: timestamp('deleted_at'),
   },
   (table) => [index('products_ownerId_idx').on(table.ownerId)],
 )

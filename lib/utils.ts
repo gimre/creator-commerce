@@ -17,6 +17,13 @@ export function slugify(name: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+// Cents + ISO currency code -> "$29.00". Prices are stored in cents.
+export function formatPrice(priceInCents: number, currency: string) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
+    priceInCents / 100,
+  )
+}
+
 // "Gabi Ionescu" -> "GI". The user table has no initials column.
 export function getInitials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean)
