@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 
-import { signOut } from "@/lib/auth-client"
+import { signOut } from "@/lib/client/auth"
 import {
   SidebarMenu,
   SidebarMenuButton,

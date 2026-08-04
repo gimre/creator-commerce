@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 
-import { UploadDropzone } from "@/lib/uploadthing"
+import { UploadDropzone } from "@/lib/client/uploadthing"
 import { MAX_PRODUCT_IMAGES } from "@/lib/schemas/product"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 

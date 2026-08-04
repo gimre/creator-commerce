@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Design reference material, not app code: extracted UI kits that expect an
+    // ambient `Icon`, plus a minified bundle. Next never compiles any of it.
+    "docs/**",
   ]),
 ]);
 

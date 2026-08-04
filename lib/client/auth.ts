@@ -1,3 +1,5 @@
+import 'client-only';
+
 import { createAuthClient } from 'better-auth/react';
 import { inferAdditionalFields } from 'better-auth/client/plugins';
 

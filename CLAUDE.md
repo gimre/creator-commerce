@@ -7,6 +7,17 @@ Write all documentation (docs/, README updates, code comments) in English only.
 Every module under `lib/server/` starts with `import 'server-only'` so it can
 never be pulled into a client bundle.
 
+Mirroring that, every module under `lib/client/` starts with `import 'client-only'`.
+These hold browser-side singletons — the Better Auth client (`lib/client/auth.ts`)
+and the UploadThing React helpers (`lib/client/uploadthing.ts`). A `lib/client/`
+module may reference a `lib/server/` one **only** through `import type`, which is
+erased at compile time; importing a value across that line is what the two markers
+exist to catch.
+
+Everything else directly under `lib/` is environment-agnostic and safe on both
+sides: `lib/utils.ts`, `lib/schemas/*`. `lib/actions/*` is its own case — server
+actions, marked with `'use server'`, imported by client components.
+
 **Server actions** (`lib/actions/*`) resolve the current user, parse input, call
 a DAL function, then handle Next.js concerns (`revalidatePath`, `redirect`). They
 never query tables.
