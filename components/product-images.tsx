@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { X } from "lucide-react"
 
+import { removeProductImageAction } from "@/lib/actions/products"
 import { UploadDropzone } from "@/lib/client/uploadthing"
 import { MAX_PRODUCT_IMAGES } from "@/lib/schemas/product"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function ProductImages({
@@ -17,6 +20,18 @@ export function ProductImages({
 }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
+  const [isRemoving, startRemoving] = useTransition()
+
+  function remove(url: string) {
+    setRemoving(url)
+    startRemoving(async () => {
+      const result = await removeProductImageAction(productId, url)
+      setError(result.error ?? null)
+      setRemoving(null)
+      router.refresh()
+    })
+  }
   // `images` is server state — the urls already persisted for this product — so
   // this asks "is the product full?", not "is an upload in flight?".
   const atLimit = images.length >= MAX_PRODUCT_IMAGES
@@ -35,7 +50,7 @@ export function ProductImages({
             {images.map((url) => (
               <div
                 key={url}
-                className="relative size-24 overflow-hidden rounded-lg border border-border bg-muted"
+                className="group/image relative size-24 overflow-hidden rounded-lg border border-border bg-muted"
               >
                 <Image
                   src={url}
@@ -44,6 +59,21 @@ export function ProductImages({
                   sizes="96px"
                   className="object-cover"
                 />
+                {/* Revealed on hover, but always reachable by keyboard. */}
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="destructive"
+                  aria-label="Remove image"
+                  disabled={isRemoving}
+                  onClick={() => remove(url)}
+                  className="absolute top-1 right-1 bg-background/80 opacity-0 backdrop-blur-sm transition-opacity group-hover/image:opacity-100 focus-visible:opacity-100 disabled:opacity-0 group-hover/image:disabled:opacity-50"
+                >
+                  <X />
+                </Button>
+                {removing === url && (
+                  <div className="absolute inset-0 bg-background/60" />
+                )}
               </div>
             ))}
           </div>

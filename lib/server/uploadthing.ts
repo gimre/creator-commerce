@@ -2,7 +2,7 @@ import 'server-only'
 
 import { revalidatePath } from 'next/cache'
 import { createUploadthing, type FileRouter } from 'uploadthing/next'
-import { UploadThingError } from 'uploadthing/server'
+import { UTApi, UploadThingError } from 'uploadthing/server'
 import { z } from 'zod'
 
 import { MAX_PRODUCT_IMAGES } from '@/lib/schemas/product'
@@ -54,3 +54,35 @@ export const uploadRouter = {
 } satisfies FileRouter
 
 export type UploadRouter = typeof uploadRouter
+
+// Reads UPLOADTHING_TOKEN from the environment, same as the route handler.
+const utapi = new UTApi()
+
+// A ufsUrl is https://<appId>.ufs.sh/f/<key>, so the key is the last segment.
+function fileKeyFromUrl(url: string) {
+  try {
+    return new URL(url).pathname.split('/').pop() || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Deletes the underlying files from UploadThing storage.
+ *
+ * Callers must have already detached the urls from the row that referenced
+ * them: the database is the source of truth, and a product pointing at a
+ * deleted file renders a broken image, whereas a file with nothing pointing at
+ * it is merely wasted storage. A failure here is swallowed for the same reason
+ * — the user's delete already succeeded as far as the product is concerned.
+ */
+export async function deleteUploadedFiles(urls: string[]) {
+  const keys = urls.map(fileKeyFromUrl).filter((key) => key !== null)
+  if (keys.length === 0) return
+
+  try {
+    await utapi.deleteFiles(keys)
+  } catch (error) {
+    console.error('Failed to delete files from UploadThing storage', error)
+  }
+}

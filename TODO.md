@@ -32,13 +32,15 @@
   "did it work" is answered when files are picked rather than when the upload
   completes.
 
-- **Uploaded files are never removed from UploadThing storage.**
-  Nothing deletes files today, and two cases leave orphans behind: a product
-  that is soft-deleted keeps its images in storage, and a file whose append
-  loses the `cardinality(images) + n <= MAX_PRODUCT_IMAGES` race in
-  `addProductImages` is already stored by the time the row rejects it. Needs a
-  `UTApi` client and a delete path keyed on the file key, which is the last
-  segment of the `ufsUrl`.
+- **Some uploaded files still leak into UploadThing storage.**
+  Removing an image from a product now deletes the underlying file
+  (`deleteUploadedFiles` in `lib/server/uploadthing.ts`), but two paths still
+  leave orphans: a soft-deleted product keeps all of its images in storage, and
+  a file whose append loses the `cardinality(images) + n <= MAX_PRODUCT_IMAGES`
+  race in `addProductImages` is already stored by the time the row rejects it.
+  Both want the same `deleteUploadedFiles` call — the first from
+  `deleteProductAction`, the second from the upload callback when the append
+  returns null.
 
 ## Tech debt
 

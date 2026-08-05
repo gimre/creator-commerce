@@ -7,9 +7,11 @@ import { z } from 'zod'
 import {
   createProduct,
   deleteUserProduct,
+  removeProductImage,
   updateUserProduct,
 } from '@/lib/server/dal/products'
 import { revalidateStorefront } from '@/lib/server/revalidate'
+import { deleteUploadedFiles } from '@/lib/server/uploadthing'
 import { requireUser } from '@/lib/server/session'
 import { createProductSchema } from '@/lib/schemas/product'
 
@@ -90,6 +92,26 @@ export async function updateProductAction(
   revalidatePath(`/products/${productId}`)
   revalidateStorefront()
   redirect('/products')
+}
+
+export async function removeProductImageAction(
+  productId: number,
+  url: string,
+): Promise<{ error?: string }> {
+  const user = await requireUser()
+
+  // Owner-scoped, and only matches when this product actually holds the url —
+  // so reaching the storage delete below proves the caller owned the file.
+  const product = await removeProductImage(productId, user.id, url)
+  if (!product) {
+    return { error: 'Image not found' }
+  }
+
+  await deleteUploadedFiles([url])
+
+  revalidatePath(`/products/${productId}`)
+  revalidateStorefront()
+  return {}
 }
 
 export async function deleteProductAction(id: string): Promise<void> {

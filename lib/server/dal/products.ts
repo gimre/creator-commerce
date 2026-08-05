@@ -132,6 +132,32 @@ export async function deleteUserProduct(
   return deleted != null
 }
 
+// Owner-scoped image removal. The `@>` guard means the update only matches when
+// this product actually holds the url, so the caller can treat a null result as
+// "not yours / not there" and know a non-null one means the file was really
+// detached from this product — which is what makes it safe to then delete the
+// underlying file from storage.
+export async function removeProductImage(
+  id: number,
+  ownerId: string,
+  url: string,
+): Promise<Product | null> {
+  const [product] = await db
+    .update(productsTable)
+    .set({ images: sql`array_remove(${productsTable.images}, ${url})` })
+    .where(
+      and(
+        eq(productsTable.id, id),
+        eq(productsTable.ownerId, ownerId),
+        isNull(productsTable.deletedAt),
+        sql`${productsTable.images} @> ARRAY[${url}]::text[]`,
+      ),
+    )
+    .returning()
+
+  return product ?? null
+}
+
 // Storefront read: everything a seller has published, oldest first. Scoped by
 // owner and status so drafts and soft-deleted rows never reach a public page.
 export async function getPublishedProducts(ownerId: string): Promise<Product[]> {
