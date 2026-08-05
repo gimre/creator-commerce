@@ -42,6 +42,62 @@
   `deleteProductAction`, the second from the upload callback when the append
   returns null.
 
+## Image optimization
+
+Baseline is already in place: no raw `<img>` anywhere, `remotePatterns` set for
+UploadThing, every `Image` uses `fill` + `sizes` + `alt`. What is left:
+
+- **`priority` is deprecated in Next 16 — migrate to the explicit props.**
+  `ProductGallery` passes `priority={index === 0}`
+  (`components/product-gallery.tsx`) and `ProductCover` accepts a `priority`
+  prop (`components/product-card.tsx`). Next 16 deprecated `priority` in favour
+  of `preload`, and the docs recommend `loading="eager"` / `fetchPriority="high"`
+  over `preload` in most cases. The gallery's first slide is the product page's
+  LCP element, so `loading="eager"` + `fetchPriority="high"` is the right
+  replacement; `preload` only if we want the `<link>` in `<head>`.
+
+- **The storefront grid has no eager image at all, so its LCP lazy-loads.**
+  `ProductCover` takes a `priority` prop but `ProductCard` never forwards it and
+  the storefront page never sets it, so every card image is lazy — including the
+  one that decides LCP. Forward the prop and set it on the first card (or first
+  row). While there: the `sizes` prop on `ProductCover` is likewise never
+  overridden by any caller, so either wire it up or drop both.
+
+- **`sizes` describes a responsive layout we do not have.**
+  The storefront grid is `grid-cols-3` with no breakpoint and the product page is
+  `grid-cols-[1.2fr_1fr]`; neither ever stacks. Yet the cards declare
+  `(max-width: 768px) 100vw, 360px` and the gallery `(max-width: 1080px) 100vw,
+  620px`, so on a phone the browser fetches a full-viewport variant for a ~117px
+  card. The desktop numbers are off too — the real gallery width is ~545px, not
+  620px. Either make the grids responsive so the `100vw` branch becomes true, or
+  correct the `sizes` values to the widths actually rendered.
+
+- **No blur placeholder on remote images.**
+  `placeholder="blur"` needs a `blurDataURL`, which is not derived automatically
+  for remote URLs. A single shared solid-colour data URL for product covers and
+  gallery slides is enough to remove the flash of empty frame.
+
+- **Every image knob in `next.config.ts` is still at its default.**
+  In rough order of payoff:
+  - `minimumCacheTTL` defaults to 4 hours; UploadThing keys are immutable, so we
+    re-optimize the same bytes several times a day for nothing. `2678400` (31d).
+  - `formats` defaults to `['image/webp']` only — AVIF is not being served
+    despite what we claim. `['image/avif', 'image/webp']` costs ~50% more encode
+    time on the first request and double the cache storage for ~20% smaller
+    files.
+  - `remotePatterns` omits `pathname` and `search`, which implies `**` for both.
+    UploadThing serves `/f/<key>`, so `pathname: '/f/**'` and `search: ''` close
+    the gap the docs warn about.
+  - `qualities` defaults to `[75]`; allowing `[50, 75]` lets grid thumbnails drop
+    to `quality={50}`.
+  - `maximumResponseBody` defaults to 50 MB per source fetch, far above anything
+    the product image endpoint accepts — 5 MB is a cheap memory guard.
+
+- **Minor.** The dashboard thumbnails in `components/product-images.tsx` use
+  `alt=""`; they sit next to a labelled "Remove image" button so this is
+  defensible, but a real alt is safer. The public product page also has no
+  `openGraph.images`, even though the product cover is exactly the right asset.
+
 ## Tech debt
 
 - **Extract `productStatus` enum out of the server DB schema.**

@@ -48,11 +48,14 @@ export default async function StorefrontPage({
         </p>
       ) : (
         <div className="grid grid-cols-3 gap-5">
-          {products.map((product) => (
+          {products.map((product, index) => (
             <ProductCard
               key={product.id}
               product={product}
               handle={user.handle}
+              // The grid starts at the top of the page, so the first cover is
+              // the LCP candidate.
+              preload={index === 0}
             />
           ))}
         </div>

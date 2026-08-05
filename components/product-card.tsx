@@ -1,6 +1,6 @@
 import Link from "next/link"
-import Image from "next/image"
 
+import { Image } from "@/components/image"
 import { ProductImagePlaceholder } from "@/components/product-image-placeholder"
 import { cn, formatPrice } from "@/lib/utils"
 
@@ -10,14 +10,14 @@ export function ProductCover({
   className,
   iconClassName,
   sizes,
-  priority,
+  preload,
 }: {
   images: string[]
   alt: string
   className?: string
   iconClassName?: string
   sizes?: string
-  priority?: boolean
+  preload?: boolean
 }) {
   const [cover] = images
   const frame = cn("aspect-[3/2]", className)
@@ -35,7 +35,7 @@ export function ProductCover({
         alt={alt}
         fill
         sizes={sizes ?? "(max-width: 768px) 100vw, 360px"}
-        priority={priority}
+        preload={preload}
         className="object-cover"
       />
     </div>
@@ -57,17 +57,24 @@ export type ProductCardProduct = {
 export function ProductCard({
   product,
   handle,
+  preload,
 }: {
   product: ProductCardProduct
   // Seller handle without the leading "@"; the link adds it back.
   handle: string
+  // Set by the grid on its first card only — see `Image`'s `preload`.
+  preload?: boolean
 }) {
   return (
     <Link
       href={`/@${handle}/${product.id}/${product.slug}`}
       className="flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/15"
     >
-      <ProductCover images={product.images} alt={product.name} />
+      <ProductCover
+        images={product.images}
+        alt={product.name}
+        preload={preload}
+      />
       <div className="flex flex-1 flex-col gap-1.5 p-4">
         <span className="font-heading text-[15px] font-medium">
           {product.name}

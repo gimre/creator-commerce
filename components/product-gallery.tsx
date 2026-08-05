@@ -1,5 +1,4 @@
-import Image from "next/image"
-
+import { Image } from "@/components/image"
 import { ProductImagePlaceholder } from "@/components/product-image-placeholder"
 import {
   Carousel,
@@ -34,8 +33,14 @@ export function ProductGallery({
                 alt={alt}
                 fill
                 sizes="(max-width: 1080px) 100vw, 620px"
-                // Only the first slide is above the fold.
-                priority={index === 0}
+                // Every slide is in the DOM from the start, just translated out
+                // of the frame — so the browser lazy-loads the ones it can't
+                // see, and the first tap of "next" lands on an empty box. Fetch
+                // the neighbour up front to cover that tap; the rest of a
+                // gallery (up to MAX_PRODUCT_IMAGES) stays lazy rather than
+                // paying for slides most visitors never reach.
+                preload={index === 0}
+                loading={index === 1 ? "eager" : undefined}
                 className="object-cover"
               />
             </div>
