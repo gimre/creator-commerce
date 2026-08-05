@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   CircleHelp,
+  Compass,
   Download,
   Heart,
   LayoutDashboard,
@@ -39,6 +40,7 @@ const NAV_GROUPS: { label?: string; items: NavItem[] }[] = [
   {
     label: "Buying",
     items: [
+      { label: "Explore", href: "/explore", icon: Compass },
       { label: "Purchases", href: "/purchases", icon: Receipt },
       { label: "Downloads", href: "/downloads", icon: Download },
       { label: "Wishlist", href: "/wishlist", icon: Heart },

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation"
 
 const TITLES: [prefix: string, title: string][] = [
   ["/dashboard", "Dashboard"],
+  ["/explore", "Explore"],
   ["/products", "Products"],
   ["/sales", "Sales"],
   ["/purchases", "Purchases"],

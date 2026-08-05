@@ -34,3 +34,17 @@ passes it in.
 (actions, pages, layouts) resolve the user there and pass ids down:
 - `getUser()` is `cache()`-wrapped so repeated calls in one render pass hit the
   session once; `requireUser()` wraps it and redirects to `/login` when absent.
+
+# Database schema
+
+`lib/server/db/schemas/auth.ts` is **generated** — never edit it by hand. It is
+output by `npm run schema:better-auth`, which reads the Better Auth config in
+`lib/server/auth.ts`. Auth tables (`user`, `session`, `account`, `verification`)
+change by editing that config — a new column on `user` is a new entry under
+`user.additionalFields` — and then regenerating. A hand-written column survives
+until the next generate run silently drops it.
+
+`lib/server/db/schemas/product.ts` is not generated and is edited directly.
+
+Either way, SQL in `drizzle/` is generated too: `npm run schema:migrations:generate`
+after a schema change, then `npm run schema:migrations:run`.

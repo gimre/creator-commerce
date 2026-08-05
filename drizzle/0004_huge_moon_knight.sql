@@ -1,0 +1,1 @@
+CREATE INDEX "products_status_createdAt_idx" ON "products" USING btree ("status","created_at","id") WHERE deleted_at is null;

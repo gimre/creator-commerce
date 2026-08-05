@@ -22,6 +22,20 @@
       "when": 1785773090764,
       "tag": "0002_chemical_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785942108979,
+      "tag": "0003_omniscient_nuke",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785949983476,
+      "tag": "0004_huge_moon_knight",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,15 @@
 import 'server-only'
 
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, isNull, ne, or, sql } from 'drizzle-orm'
 
+import {
+  EXPLORE_RESULT_LIMIT,
+  MIN_EXPLORE_QUERY_LENGTH,
+  type ExploreSort,
+} from '@/lib/schemas/explore'
 import { MAX_PRODUCT_IMAGES } from '@/lib/schemas/product'
 import db from '@/lib/server/db'
+import { user } from '@/lib/server/db/schemas/auth'
 import {
   productsTable,
   type Product,
@@ -193,6 +199,106 @@ export async function getPublishedProduct(
     .limit(1)
 
   return product ?? null
+}
+
+// Only the fields the explore grid renders, plus the seller identity its links
+// need. `owner_id` and `updated_at` have no business on a cross-seller list.
+export type ExploreProduct = {
+  id: number
+  slug: string
+  name: string
+  description: string | null
+  priceInCents: number
+  currency: string
+  images: string[]
+  createdAt: Date
+  sellerHandle: string
+  sellerName: string
+}
+
+// Nothing to do with injection — drizzle's `ilike` is `sql`${col} ilike ${value}``,
+// so the pattern is always a bound parameter and never reaches the query text.
+// This is about LIKE's own metacharacters, which Postgres interprets *inside*
+// that parameter: unescaped, a search for "50%" matches every product, and one
+// containing `\` changes the meaning of the character after it. Drizzle has no
+// helper for this and neither does any other ORM — the pattern is the caller's
+// to build, so it's the caller's to escape.
+function escapeLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
+/**
+ * Marketplace-wide product search, for the signed-in /explore page.
+ *
+ * The one read in this module that is deliberately NOT owner-scoped. What makes
+ * that safe is that it applies exactly the visibility rule the public storefront
+ * does — `status = 'published'` and no tombstone — so nothing reachable here is
+ * anything a signed-out visitor couldn't already see at /@handle. The auth gate
+ * on the page decides who gets the feature, not what the query may return.
+ *
+ * `viewerId` excludes the caller's own products: a creator browsing the
+ * marketplace is shopping, and their own catalogue is one nav item away.
+ *
+ * A `query` shorter than MIN_EXPLORE_QUERY_LENGTH is treated as absent rather
+ * than as a filter, so a half-typed box browses instead of matching '%a%'. The
+ * client enforces the same rule; this is the backstop for any other caller.
+ */
+export async function searchPublishedProducts({
+  viewerId,
+  query,
+  sort,
+}: {
+  viewerId: string
+  query: string
+  sort: ExploreSort
+}): Promise<ExploreProduct[]> {
+  const term = query.trim()
+  const pattern =
+    term.length >= MIN_EXPLORE_QUERY_LENGTH
+      ? `%${escapeLikePattern(term)}%`
+      : null
+
+  return db
+    .select({
+      id: productsTable.id,
+      slug: productsTable.slug,
+      name: productsTable.name,
+      description: productsTable.description,
+      priceInCents: productsTable.priceInCents,
+      currency: productsTable.currency,
+      images: productsTable.images,
+      createdAt: productsTable.createdAt,
+      sellerHandle: user.handle,
+      sellerName: user.name,
+    })
+    .from(productsTable)
+    // Inner, not left: a product whose owner row vanished has no storefront url
+    // to link to, so it has no place in the grid.
+    .innerJoin(user, eq(user.id, productsTable.ownerId))
+    .where(
+      and(
+        eq(productsTable.status, 'published'),
+        isNull(productsTable.deletedAt),
+        ne(productsTable.ownerId, viewerId),
+        // `and()` drops undefined entries, so no query is simply no clause.
+        pattern
+          ? or(
+              ilike(productsTable.name, pattern),
+              // description is nullable, where ILIKE yields NULL — which `or`
+              // handles correctly, since NULL OR true is true.
+              ilike(productsTable.description, pattern),
+            )
+          : undefined,
+      ),
+    )
+    // Column order matches products_status_createdAt_idx so this reads straight
+    // off the index. `id` breaks ties that createdAt alone leaves unordered.
+    .orderBy(
+      ...(sort === 'newest'
+        ? [desc(productsTable.createdAt), desc(productsTable.id)]
+        : [asc(productsTable.createdAt), asc(productsTable.id)]),
+    )
+    .limit(EXPLORE_RESULT_LIMIT)
 }
 
 // Owner-scoped so a user can only ever load their own product.

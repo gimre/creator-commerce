@@ -98,6 +98,36 @@ UploadThing, every `Image` uses `fill` + `sizes` + `alt`. What is left:
   defensible, but a real alt is safer. The public product page also has no
   `openGraph.images`, even though the product cover is exactly the right asset.
 
+## Search (`/explore`)
+
+The current implementation is deliberately the throwaway one — `ILIKE '%term%'`,
+ordered by `createdAt`, top 50, no pagination. Three known limits:
+
+- **No trigram index yet.** `ILIKE '%x%'` has a leading wildcard, so no btree can
+  serve it; only a `pg_trgm` GIN can. Deferred because drizzle-kit cannot emit
+  `CREATE EXTENSION`, so `CREATE EXTENSION IF NOT EXISTS pg_trgm;` would have to
+  be hand-added to the generated migration and would stay invisible to the
+  drizzle snapshot (breaking `push` against a fresh database). Paste-ready form:
+  ```ts
+  index('products_search_trgm_idx')
+    .using('gin', table.name.op('gin_trgm_ops'), table.description.op('gin_trgm_ops'))
+  ```
+  Until then the search path is a sequential scan with a case-fold per row, and
+  `LIMIT 50` saves nothing because the sort must see every match first. Fine at
+  the current table size; not a permanent answer. The 3-character minimum does
+  not reduce this cost — it exists so the eventual trigram index is usable, since
+  pg_trgm needs three non-wildcard characters to extract a trigram.
+
+- **Sorting search results by `createdAt` is a UX bug in waiting.** An exact title
+  match can land at position 51 and be invisible. The fix is a `relevance` sort
+  (trigram `similarity()` or `ts_rank`) as the default *when a query is present*,
+  falling back to `newest` when browsing. `ExploreSort` is a closed enum, so that
+  is purely additive: one member, one pill.
+
+- **ILIKE is case-insensitive but not accent-insensitive** — "cafe" does not match
+  "café". Needs the `unaccent` extension (same drizzle-kit caveat as above) or
+  normalisation at write time.
+
 ## Tech debt
 
 - **Extract `productStatus` enum out of the server DB schema.**

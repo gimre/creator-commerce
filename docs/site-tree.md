@@ -41,6 +41,9 @@ app/
     │       ├── error.tsx
     │       └── not-found.tsx
     ├── sales/page.tsx             # /sales
+    ├── explore/
+    │   ├── page.tsx               # /explore
+    │   └── explore-search-input.tsx
     ├── purchases/page.tsx         # /purchases
     ├── downloads/page.tsx         # /downloads
     ├── wishlist/page.tsx          # /wishlist
@@ -103,6 +106,7 @@ Five page archetypes — design one template per archetype, reuse across pages. 
 | `/dashboard` | Overview | Stats/overview | KPIs: revenue, units sold, top 5 products; onboarding checklist | S1, S10, S12, S18 |
 | `/products` | Product list | Data table | Filtering, search, pagination, Draft/Published status, duplicate | S1, S12 |
 | `/sales` | Sales | Data table | Sales table + analytics | S1, S12 |
+| `/explore` | Product search | Grid | Marketplace-wide search over published products from other creators. `?q=` substring match on name/description (ILIKE, 3-char minimum, 300ms debounce), `?sort=newest\|oldest`, top 50, no pagination. Both filters live in the query string, so a search is shareable. | S? |
 | `/purchases` | Order history | Data table | Buyer's orders: product, creator, date, amount, receipt link, download shortcut. History/receipts view — file access lives in `/downloads`. | ext |
 | `/downloads` | Downloads library | Data table | Current user's purchased files + protected download links; post-payment redirect target. Library view — order details live in `/purchases`. | S11 |
 | `/products/new` | Create product | Form | RHF + zod + next-safe-action form, price/currency validation | S7 |
