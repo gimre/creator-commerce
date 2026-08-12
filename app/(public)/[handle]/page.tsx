@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
+import { readCartMembership } from "@/lib/server/cart"
 import { getPublishedProducts } from "@/lib/server/dal/products"
 import { getUserByHandle } from "@/lib/server/dal/users"
 import { ProductCard } from "@/components/product-card"
@@ -31,6 +32,7 @@ export default async function StorefrontPage({
   }
 
   const products = await getPublishedProducts(user.id)
+  const inCart = await readCartMembership()
 
   return (
     <div className="mx-auto max-w-[1080px] px-6 pt-8 pb-16">
@@ -53,6 +55,7 @@ export default async function StorefrontPage({
               key={product.id}
               product={product}
               handle={user.handle}
+              inCart={inCart(product.id)}
               // The grid starts at the top of the page, so the first cover is
               // the LCP candidate.
               preload={index === 0}

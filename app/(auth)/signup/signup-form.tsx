@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 import { signUp } from "@/lib/client/auth"
+import { authPathWithNext } from "@/lib/schemas/auth"
 import { Button } from "@/components/ui/button"
 import { CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export function SignupForm() {
+// `next` arrives already validated from the page — see lib/schemas/auth.ts.
+export function SignupForm({ next }: { next: string }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export function SignupForm() {
       return
     }
 
-    router.push("/dashboard")
+    router.push(next)
     router.refresh()
   }
 
@@ -91,7 +93,10 @@ export function SignupForm() {
         </Button>
         <p className="mt-1.5 text-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="text-primary hover:underline">
+          <Link
+            href={authPathWithNext("/login", next)}
+            className="text-primary hover:underline"
+          >
             Sign in
           </Link>
         </p>

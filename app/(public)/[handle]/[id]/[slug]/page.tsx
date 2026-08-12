@@ -8,11 +8,12 @@ import {
   InfinityIcon,
   Receipt,
   ShieldCheck,
-  ShoppingCart,
 } from "lucide-react"
 
+import { readCartMembership } from "@/lib/server/cart"
 import { getPublishedProduct } from "@/lib/server/dal/products"
 import { getUserByHandle } from "@/lib/server/dal/users"
+import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductGallery } from "@/components/product-gallery"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -58,6 +59,7 @@ export default async function ProductPage({
 
   const { user, product } = found
   const price = formatPrice(product.priceInCents, product.currency)
+  const inCart = (await readCartMembership())(product.id)
 
   return (
     <div className="mx-auto max-w-[1080px] px-6 pt-6 pb-16">
@@ -82,13 +84,29 @@ export default async function ProductPage({
             </p>
           )}
           <div className="flex gap-2.5">
-            <Button size="lg" className="flex-1">
-              <ShoppingCart /> Buy now — {price}
-            </Button>
+            <AddToCartButton
+              productId={product.id}
+              productName={product.name}
+              inCart={inCart}
+              size="lg"
+              className="flex-1"
+              label={inCart ? "In cart" : `Add to cart — ${price}`}
+            />
             <Button size="lg" variant="outline">
               <Heart />
             </Button>
           </div>
+          {inCart && (
+            <Button
+              variant="link"
+              size="sm"
+              className="self-start px-0"
+              nativeButton={false}
+              render={<Link href="/cart" />}
+            >
+              View cart
+            </Button>
+          )}
           <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
             <ShieldCheck className="size-[15px]" />
             Secure checkout via Stripe · protected download

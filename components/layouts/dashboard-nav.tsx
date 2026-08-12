@@ -41,6 +41,9 @@ const NAV_GROUPS: { label?: string; items: NavItem[] }[] = [
     label: "Buying",
     items: [
       { label: "Explore", href: "/explore", icon: Compass },
+      // No Cart entry: /cart is a public route outside this shell, so a sidebar
+      // link to it would make the sidebar vanish. The topbar's CartBadge is the
+      // one way out.
       { label: "Purchases", href: "/purchases", icon: Receipt },
       { label: "Downloads", href: "/downloads", icon: Download },
       { label: "Wishlist", href: "/wishlist", icon: Heart },

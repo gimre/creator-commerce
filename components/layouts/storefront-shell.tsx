@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Heart } from "lucide-react"
 
 import type { PublicUser } from "@/lib/server/dal/users"
+import { CartBadge } from "@/components/cart-badge"
 import { Button } from "@/components/ui/button"
 import { getInitials } from "@/lib/utils"
 
@@ -35,6 +36,7 @@ export function StorefrontShell({
           <Button variant="outline" size="sm">
             <Heart /> Wishlist
           </Button>
+          <CartBadge />
           <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/login" />}>
             Sign in
           </Button>

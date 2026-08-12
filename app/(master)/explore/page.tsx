@@ -9,6 +9,7 @@ import {
   exploreSort,
   type ExploreSort,
 } from "@/lib/schemas/explore"
+import { readCartMembership } from "@/lib/server/cart"
 import { searchPublishedProducts } from "@/lib/server/dal/products"
 import { requireUser } from "@/lib/server/session"
 import { ProductCard } from "@/components/product-card"
@@ -85,6 +86,7 @@ async function ExploreResults({
   }
 
   const products = await searchPublishedProducts({ viewerId, query: q, sort })
+  const inCart = await readCartMembership()
 
   if (products.length === 0) {
     return (
@@ -104,6 +106,7 @@ async function ExploreResults({
             key={product.id}
             product={product}
             handle={product.sellerHandle}
+            inCart={inCart(product.id)}
             // Nothing above the grid but the header, so the first cover is the
             // LCP candidate.
             preload={index === 0}

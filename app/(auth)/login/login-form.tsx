@@ -5,12 +5,17 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 import { signIn } from "@/lib/client/auth"
+import { authPathWithNext } from "@/lib/schemas/auth"
 import { Button } from "@/components/ui/button"
 import { CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export function LoginForm() {
+// `next` arrives already validated from the page — see lib/schemas/auth.ts.
+// Deliberately not better-auth's own `callbackURL`: it navigates via
+// window.location.href, a full reload that would race the router.push below, and
+// on signUp.email it is discarded entirely unless email verification is on.
+export function LoginForm({ next }: { next: string }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +38,7 @@ export function LoginForm() {
       return
     }
 
-    router.push("/dashboard")
+    router.push(next)
     router.refresh()
   }
 
@@ -72,7 +77,10 @@ export function LoginForm() {
         </Button>
         <p className="mt-1.5 text-center text-sm text-muted-foreground">
           New here?{" "}
-          <Link href="/signup" className="text-primary hover:underline">
+          <Link
+            href={authPathWithNext("/signup", next)}
+            className="text-primary hover:underline"
+          >
             Create an account
           </Link>
         </p>

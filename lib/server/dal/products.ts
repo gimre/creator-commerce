@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, asc, desc, eq, ilike, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
 import {
   EXPLORE_RESULT_LIMIT,
@@ -299,6 +299,77 @@ export async function searchPublishedProducts({
         : [asc(productsTable.createdAt), asc(productsTable.id)]),
     )
     .limit(EXPLORE_RESULT_LIMIT)
+}
+
+// Everything a cart line renders, plus the seller identity its link needs.
+// Narrower than ExploreProduct: a cart row is a thumbnail, a name and a price,
+// so description and createdAt have no business being fetched.
+export type CartProduct = {
+  id: number
+  slug: string
+  name: string
+  priceInCents: number
+  currency: string
+  images: string[]
+  // The owner id, not just their public identity: checkout records it as the
+  // purchase's sellerId, and uses it to refuse a self-purchase.
+  sellerId: string
+  sellerHandle: string
+  sellerName: string
+}
+
+/**
+ * Resolves cart cookie ids to products, in the order they were given.
+ *
+ * The second read in this module that is deliberately not owner-scoped, and safe
+ * for the same reason searchPublishedProducts is: it applies exactly the
+ * storefront's visibility rule, so a cart can never surface a draft, a
+ * soft-deleted product, or anything a signed-out visitor couldn't already reach
+ * at /@handle/{id}/{slug}. There is no ownerId to scope by — a cart spans
+ * sellers by definition.
+ *
+ * Ids that no longer resolve are dropped rather than reported. That is what
+ * makes the cart self-healing: the cookie is a list of wishes, this is the
+ * authority on which of them still exist, and every caller wants the same
+ * answer — so the filtering belongs here rather than in each page.
+ */
+export async function getCartProducts(ids: number[]): Promise<CartProduct[]> {
+  // `inArray(col, [])` compiles to `false`, so this is an optimisation rather
+  // than a crash guard — but an empty cart is the common render.
+  if (ids.length === 0) return []
+
+  const rows = await db
+    .select({
+      id: productsTable.id,
+      slug: productsTable.slug,
+      name: productsTable.name,
+      priceInCents: productsTable.priceInCents,
+      currency: productsTable.currency,
+      images: productsTable.images,
+      sellerId: productsTable.ownerId,
+      sellerHandle: user.handle,
+      sellerName: user.name,
+    })
+    .from(productsTable)
+    // Inner, not left: a product whose owner row vanished has no storefront url
+    // to link to, so it has no place in a cart either.
+    .innerJoin(user, eq(user.id, productsTable.ownerId))
+    .where(
+      and(
+        inArray(productsTable.id, ids),
+        eq(productsTable.status, 'published'),
+        isNull(productsTable.deletedAt),
+      ),
+    )
+
+  // The order the caller wants is the cookie's own — insertion order — which the
+  // database has no way to know. Rebuilt with a Map rather than an
+  // `array_position(...)` ORDER BY: for at most MAX_CART_ITEMS rows that would
+  // be a per-row function call ruling out any index-ordered path, and buy
+  // nothing. The rebuild doubles as the self-heal, since an id with no row
+  // simply has no entry to emit.
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  return ids.map((id) => byId.get(id)).filter((row) => row != null)
 }
 
 // Owner-scoped so a user can only ever load their own product.

@@ -10,6 +10,7 @@ import {
 } from "@/components/layouts/dashboard-nav"
 import { SignOutButton } from "@/components/layouts/sign-out-button"
 import { DashboardTopbarTitle } from "@/components/layouts/dashboard-topbar-title"
+import { CartBadge } from "@/components/cart-badge"
 import { Button } from "@/components/ui/button"
 import {
   Sidebar,
@@ -60,6 +61,7 @@ export async function DashboardShell({
           <SidebarTrigger />
           <DashboardTopbarTitle />
           <div className="flex-1" />
+          <CartBadge />
           <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/@${user.handle}`} />}>
             <ExternalLink /> View storefront
           </Button>

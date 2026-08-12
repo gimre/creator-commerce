@@ -1,6 +1,12 @@
 // Static placeholder data for the screens whose backend doesn't exist yet.
-// Products and storefronts now read from the database; what's left here backs
-// dashboard metrics, sales, purchases and downloads, none of which have tables.
+// Products, storefronts, purchases and sales now read from the database; what's
+// left here backs the dashboard and downloads.
+//
+// `downloads` needs a product asset column that productsTable doesn't have —
+// only `images` exists, so `type` and `size` describe nothing real yet. The
+// dashboard's KPIs could be derived from `purchases` except for Conversion,
+// which has no data source anywhere.
+//
 // Each block goes away with the session that lands its feature.
 
 export const kpis = [
@@ -22,21 +28,6 @@ export const topProducts = [
   { name: "Golden Hour Presets", rev: "$2,436", pct: 57 },
   { name: "Notion Freelance OS", rev: "$779", pct: 18 },
   { name: "Ambient Loops Vol. 2", rev: "$204", pct: 5 },
-]
-
-export const sales = [
-  { order: "ord_8fA2c1", product: "Golden Hour Presets", buyer: "mara@example.com", date: "Jul 14, 2026", amount: "$29.00" },
-  { order: "ord_7dK9b4", product: "Notion Freelance OS", buyer: "alex@example.com", date: "Jul 14, 2026", amount: "$19.00" },
-  { order: "ord_6cJ3e8", product: "Golden Hour Presets", buyer: "iris@example.com", date: "Jul 13, 2026", amount: "$29.00" },
-  { order: "ord_5bH1f2", product: "Ambient Loops Vol. 2", buyer: "tom@example.com", date: "Jul 12, 2026", amount: "$12.00" },
-  { order: "ord_4aG7d5", product: "Golden Hour Presets", buyer: "nina@example.com", date: "Jul 11, 2026", amount: "$29.00" },
-  { order: "ord_3zF4c9", product: "Notion Freelance OS", buyer: "leo@example.com", date: "Jul 10, 2026", amount: "$19.00" },
-]
-
-export const purchases = [
-  { product: "Cinematic SFX Library", creator: "@soundroom", date: "Jun 28, 2026", amount: "$24.00" },
-  { product: "Figma Portfolio Kit", creator: "@designdaily", date: "Jun 12, 2026", amount: "$18.00" },
-  { product: "Street Photography Guide", creator: "@frankshoots", date: "May 30, 2026", amount: "$15.00" },
 ]
 
 // Mirrors the digital asset kinds the download screen renders. Real products

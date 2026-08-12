@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { AddToCartButton } from "@/components/add-to-cart-button"
 import { Image } from "@/components/image"
 import { ProductImagePlaceholder } from "@/components/product-image-placeholder"
 import { cn, formatPrice } from "@/lib/utils"
@@ -58,18 +59,23 @@ export function ProductCard({
   product,
   handle,
   preload,
+  inCart,
 }: {
   product: ProductCardProduct
   // Seller handle without the leading "@"; the link adds it back.
   handle: string
   // Set by the grid on its first card only — see `Image`'s `preload`.
   preload?: boolean
+  // Undefined means the caller has no cart context (a placeholder screen), and
+  // the card renders without a cart button at all.
+  inCart?: boolean
 }) {
   return (
-    <Link
-      href={`/@${handle}/${product.id}/${product.slug}`}
-      className="flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/15"
-    >
+    // Not a <Link> root, because the cart button would then be a <button> inside
+    // an <a> — invalid, and a click would fire both. Instead the anchor is a
+    // stretched overlay and the button is its sibling, lifted above it with
+    // z-10. No stopPropagation needed: they never nest.
+    <div className="relative flex flex-col overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10 transition-shadow hover:ring-foreground/15">
       <ProductCover
         images={product.images}
         alt={product.name}
@@ -84,10 +90,26 @@ export function ProductCard({
             {product.description}
           </p>
         )}
-        <span className="mt-1 font-mono text-base font-medium">
-          {formatPrice(product.priceInCents, product.currency)}
-        </span>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <span className="font-mono text-base font-medium">
+            {formatPrice(product.priceInCents, product.currency)}
+          </span>
+          {inCart !== undefined && (
+            <AddToCartButton
+              productId={product.id}
+              productName={product.name}
+              inCart={inCart}
+              size="icon-sm"
+              className="relative z-10"
+            />
+          )}
+        </div>
       </div>
-    </Link>
+      <Link
+        href={`/@${handle}/${product.id}/${product.slug}`}
+        aria-label={product.name}
+        className="absolute inset-0 rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+      />
+    </div>
   )
 }

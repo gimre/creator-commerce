@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { nextPathSchema } from "@/lib/schemas/auth"
 import {
   CardDescription,
   CardHeader,
@@ -12,7 +13,14 @@ export const metadata: Metadata = {
   title: "Log in",
 }
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: PageProps<"/login">) {
+  // Parsed here rather than with useSearchParams() in the form: the value is
+  // validated before it ever reaches the client, and reading it on the server
+  // avoids the Suspense boundary useSearchParams() would require.
+  const next = nextPathSchema.parse((await searchParams).next)
+
   return (
     <>
       <CardHeader>
@@ -21,7 +29,7 @@ export default function LoginPage() {
           Sign in to your Creator Commerce account.
         </CardDescription>
       </CardHeader>
-      <LoginForm />
+      <LoginForm next={next} />
     </>
   )
 }

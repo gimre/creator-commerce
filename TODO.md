@@ -136,3 +136,32 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
   the client `ProductForm`, this pulls `drizzle-orm/pg-core` into the client
   bundle. Move `productStatus`/`ProductStatus` into a client-safe shared module
   (e.g. under `lib/schemas/`) and have the DB schema import it from there.
+  `lib/schemas/purchase.ts` already does it the right way round — copy that.
+
+## Purchases
+
+- **`/downloads` is still mock, and can't be fixed by the purchases table.** Its
+  `type` and `size` columns describe a digital asset file, and `productsTable`
+  has no asset column at all — only `images`. It needs product file uploads
+  first; after that it's a join from `purchases` like `/purchases` is.
+
+- **Dashboard KPIs are still mock.** Revenue, Units sold and Products could all
+  be derived now (`getSellerTotals` already computes the first two), but
+  Conversion has no data source anywhere — there is no pageview or analytics
+  table. Deriving three of four and leaving one fabricated would be worse than
+  the current honest placeholder, so this waits on a decision about Conversion.
+
+- **No receipts.** The `/purchases` receipt column was removed rather than left
+  as a dead link. It comes back with Stripe, which is what would generate them.
+
+- **Refunds have no path.** `purchaseStatus` includes `'refunded'` and both the
+  unique index and `getPurchasedProductIds` respect it, but nothing can set it
+  yet. Stripe webhooks will.
+
+
+## UX debt
+- Currently buying and selling are kind of a hodge podge in the dashboard layout / sidebar nav. We probably want to have buying and selling as major pieces in the UI so that users that only do one and not the other can have a more tailored experience with dedicated dashboards for each.
+
+- Quite a few buttons with bad state / mock data
+  - sign in buttons
+  - dead links
