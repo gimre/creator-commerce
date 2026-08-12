@@ -17,7 +17,8 @@ import { AddToCartButton } from "@/components/add-to-cart-button"
 import { ProductGallery } from "@/components/product-gallery"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { formatPrice, parseHandleSegment } from "@/lib/utils"
+import { formatPrice } from "@/lib/currency"
+import { parseHandleSegment } from "@/lib/utils"
 
 // Resolves the seller from the handle, then the product from that seller, so a
 // product is only reachable under the storefront that actually owns it.
@@ -58,7 +59,7 @@ export default async function ProductPage({
   }
 
   const { user, product } = found
-  const price = formatPrice(product.priceInCents, product.currency)
+  const price = formatPrice(product.priceInCents)
   const inCart = (await readCartMembership())(product.id)
 
   return (

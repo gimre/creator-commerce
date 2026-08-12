@@ -4,7 +4,7 @@ import { Copy, Pencil, Plus, Search, Trash2 } from "lucide-react"
 
 import { getUserProducts } from "@/lib/server/dal/products"
 import { requireUser } from "@/lib/server/session"
-import { formatPrice } from "@/lib/utils"
+import { formatPrice } from "@/lib/currency"
 import { DeleteProductButton } from "@/components/delete-product-button"
 import { TableCard } from "@/components/table-card"
 import { Badge } from "@/components/ui/badge"
@@ -106,7 +106,7 @@ export default async function ProductsPage() {
                   <span className="block max-w-[420px] truncate">{product.name}</span>
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  {formatPrice(product.priceInCents, product.currency)}
+                  {formatPrice(product.priceInCents)}
                 </TableCell>
                 <TableCell>
                   <Badge variant={product.status === "published" ? "default" : "secondary"}>

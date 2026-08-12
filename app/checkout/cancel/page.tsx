@@ -19,12 +19,16 @@ export default function CheckoutCancelPage() {
       <p className="text-sm text-muted-foreground">
         No charge was made. You can pick up where you left off.
       </p>
-      <Button className="w-full">Back to product</Button>
+      {/* The cart, not the product: an order can span several, and nothing was
+          cleared — everything they were buying is still there. */}
+      <Button className="w-full" nativeButton={false} render={<Link href="/cart" />}>
+        Back to cart
+      </Button>
       <Link
-        href="/login"
+        href="/explore"
         className="text-[13px] text-muted-foreground hover:underline"
       >
-        Back to sign in
+        Keep browsing
       </Link>
     </CardContent>
   )

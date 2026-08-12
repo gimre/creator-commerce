@@ -1,6 +1,7 @@
 import 'server-only'
 
-import { and, count, desc, eq, ne, sum } from 'drizzle-orm'
+import { and, count, desc, eq, ne, notExists, sql, sum } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import db from '@/lib/server/db'
 import { user } from '@/lib/server/db/schemas/auth'
@@ -12,16 +13,18 @@ import {
 } from '@/lib/server/db/schemas/purchase'
 
 /**
- * Writes one checkout's rows.
+ * Writes one checkout's rows, pending payment.
  *
  * Takes an array rather than being called in a loop because the neon-http driver
  * has no interactive transactions — a single multi-row INSERT is the only atomic
  * write available, so a partially-recorded order is impossible by construction.
  *
- * onConflictDoNothing leans on purchases_buyerId_productId_unq: a double-submit
- * or an attempt to re-buy something already owned is skipped rather than
- * rejected, because neither is an error the buyer can act on. The returned rows
- * are what actually landed, so the caller can tell the difference.
+ * onConflictDoNothing leans on purchases_buyerId_productId_unq, whose predicate
+ * is now `status = 'paid'`. That means it still refuses to re-record something
+ * the buyer already owns, but it no longer dedupes two rapid submits: two
+ * pending rows for the same product are both legal, because each belongs to a
+ * different Stripe session and only one of them can ever be promoted. The
+ * returned rows are what actually landed, so the caller can tell the difference.
  */
 export async function createPurchases(
   rows: NewPurchase[],
@@ -29,6 +32,78 @@ export async function createPurchases(
   if (rows.length === 0) return []
 
   return db.insert(purchasesTable).values(rows).onConflictDoNothing().returning()
+}
+
+/**
+ * Promotes one checkout session's rows to paid.
+ *
+ * Idempotent by the `status = 'pending'` predicate: a second call — the webhook
+ * arriving after the return handler already did this, or a Stripe retry — finds
+ * nothing to update and returns []. Callers must read an empty result as "already
+ * done", not as failure.
+ *
+ * The NOT EXISTS guard is about the multi-row UPDATE, not about concurrency. If
+ * one row in the session would collide with an already-paid row for the same
+ * product, Postgres aborts the whole statement and the rest of the order — money
+ * that did arrive — stays pending. Excluding the doomed row lets everything else
+ * promote; the caller sweeps what is left behind. The guard is not airtight, since
+ * two concurrent promotions can both pass it, so callers still have to survive a
+ * unique violation.
+ *
+ * One statement, because neon-http has no interactive transactions.
+ */
+export async function markCheckoutSessionPaid(params: {
+  checkoutSessionId: string
+  paymentIntentId: string | null
+}): Promise<Purchase[]> {
+  const owned = alias(purchasesTable, 'owned')
+
+  return db
+    .update(purchasesTable)
+    .set({ status: 'paid', stripePaymentIntentId: params.paymentIntentId })
+    .where(
+      and(
+        eq(purchasesTable.stripeCheckoutSessionId, params.checkoutSessionId),
+        eq(purchasesTable.status, 'pending'),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(owned)
+            .where(
+              and(
+                eq(owned.buyerId, purchasesTable.buyerId),
+                eq(owned.productId, purchasesTable.productId),
+                eq(owned.status, 'paid'),
+              ),
+            ),
+        ),
+      ),
+    )
+    .returning()
+}
+
+/**
+ * Drops a checkout session's still-pending rows.
+ *
+ * Two callers: an expired or failed session, where the rows are dead weight; and
+ * the tail of a successful promotion, where anything still pending for that
+ * session is a duplicate of something the buyer already owns. Paid rows are never
+ * touched, so this cannot erase a completed order however it is called.
+ */
+export async function deletePendingCheckoutSession(
+  checkoutSessionId: string,
+): Promise<number> {
+  const rows = await db
+    .delete(purchasesTable)
+    .where(
+      and(
+        eq(purchasesTable.stripeCheckoutSessionId, checkoutSessionId),
+        eq(purchasesTable.status, 'pending'),
+      ),
+    )
+    .returning({ id: purchasesTable.id })
+
+  return rows.length
 }
 
 // What the /purchases table renders. The buyer already knows they are the buyer,
@@ -41,7 +116,6 @@ export type BuyerPurchase = {
   productName: string
   productSlug: string
   priceInCents: number
-  currency: string
   createdAt: Date
   sellerHandle: string
   sellerName: string
@@ -62,6 +136,11 @@ export type BuyerPurchase = {
  * Also note what is deliberately not filtered: `products.deletedAt`. Every other
  * read in this codebase hides soft-deleted products; here that would erase paid
  * history the moment a seller retired a product.
+ *
+ * Pending rows are filtered, and must be: they are orders someone started and
+ * abandoned at Stripe, and listing one here would tell a buyer they bought
+ * something nobody charged them for. `ne('pending')` rather than `eq('paid')` so
+ * refunded rows keep appearing once refunds exist — a refund belongs in history.
  */
 export async function getBuyerPurchases(
   buyerId: string,
@@ -74,7 +153,6 @@ export async function getBuyerPurchases(
       productName: purchasesTable.productName,
       productSlug: productsTable.slug,
       priceInCents: purchasesTable.priceInCents,
-      currency: purchasesTable.currency,
       createdAt: purchasesTable.createdAt,
       sellerHandle: user.handle,
       sellerName: user.name,
@@ -82,7 +160,12 @@ export async function getBuyerPurchases(
     .from(purchasesTable)
     .innerJoin(user, eq(user.id, purchasesTable.sellerId))
     .innerJoin(productsTable, eq(productsTable.id, purchasesTable.productId))
-    .where(eq(purchasesTable.buyerId, buyerId))
+    .where(
+      and(
+        eq(purchasesTable.buyerId, buyerId),
+        ne(purchasesTable.status, 'pending'),
+      ),
+    )
     // Matches purchases_buyerId_createdAt_idx, read backwards.
     .orderBy(desc(purchasesTable.createdAt), desc(purchasesTable.id))
 }
@@ -95,13 +178,14 @@ export type SellerSale = {
   orderId: string
   productName: string
   priceInCents: number
-  currency: string
   createdAt: Date
   buyerName: string
   buyerEmail: string
 }
 
-// The seller's mirror of getBuyerPurchases. No product join: /sales prints the
+// The seller's mirror of getBuyerPurchases, pending rows filtered for the same
+// reason: a checkout someone abandoned is not a sale, and showing it as one
+// overstates what the seller is owed. No product join — /sales prints the
 // snapshotted name and never links out to the storefront.
 export async function getSellerSales(sellerId: string): Promise<SellerSale[]> {
   return db
@@ -110,19 +194,22 @@ export async function getSellerSales(sellerId: string): Promise<SellerSale[]> {
       orderId: purchasesTable.orderId,
       productName: purchasesTable.productName,
       priceInCents: purchasesTable.priceInCents,
-      currency: purchasesTable.currency,
       createdAt: purchasesTable.createdAt,
       buyerName: user.name,
       buyerEmail: user.email,
     })
     .from(purchasesTable)
     .innerJoin(user, eq(user.id, purchasesTable.buyerId))
-    .where(eq(purchasesTable.sellerId, sellerId))
+    .where(
+      and(
+        eq(purchasesTable.sellerId, sellerId),
+        ne(purchasesTable.status, 'pending'),
+      ),
+    )
     .orderBy(desc(purchasesTable.createdAt), desc(purchasesTable.id))
 }
 
 export type SellerTotals = {
-  currency: string
   units: number
   revenueInCents: number
 }
@@ -130,20 +217,17 @@ export type SellerTotals = {
 /**
  * Revenue and units for the /sales KPI cards.
  *
- * Grouped by currency rather than summed flat: `currency` is a per-product
- * column, so one seller can list in more than one, and adding those cents
- * together would print a confidently wrong number. Callers get a row per
- * currency and render accordingly.
+ * One row, not a group per currency: the app charges in a single currency
+ * (lib/currency.ts), so these cents add up.
  *
  * Only 'paid' counts. A pending row is money that hasn't arrived and a refunded
  * one is money that left again — neither belongs in revenue.
  */
 export async function getSellerTotals(
   sellerId: string,
-): Promise<SellerTotals[]> {
-  return db
+): Promise<SellerTotals> {
+  const [row] = await db
     .select({
-      currency: purchasesTable.currency,
       units: count(),
       // Postgres returns SUM as a string to preserve bigint precision; these are
       // cents in an integer column, so Number is safe and saves every caller a
@@ -157,15 +241,27 @@ export async function getSellerTotals(
         eq(purchasesTable.status, 'paid'),
       ),
     )
-    .groupBy(purchasesTable.currency)
+
+  // An ungrouped aggregate always returns a row, but SUM over zero rows is NULL —
+  // so the fallback is for the seller with no sales, not for a missing row.
+  return {
+    units: row?.units ?? 0,
+    revenueInCents: row?.revenueInCents ?? 0,
+  }
 }
 
 /**
  * Which products this user already owns.
  *
- * Refunded rows are excluded, matching purchases_buyerId_productId_unq exactly —
- * so what the cart marks as owned and what the database will actually refuse to
- * insert can never disagree.
+ * Paid only, matching purchases_buyerId_productId_unq exactly — so what the cart
+ * marks as owned and what the database will actually refuse to insert can never
+ * disagree. Refunded rows are excluded because the product can be bought again;
+ * pending rows because nobody has paid for them yet, and treating an abandoned
+ * checkout as ownership would leave the buyer unable to retry it.
+ *
+ * That last part is a compromise, not a design — see the note in TODO.md about
+ * going back to one purchase per (buyer, product) once stale pending rows can be
+ * cleaned up.
  */
 export async function getPurchasedProductIds(
   buyerId: string,
@@ -176,7 +272,7 @@ export async function getPurchasedProductIds(
     .where(
       and(
         eq(purchasesTable.buyerId, buyerId),
-        ne(purchasesTable.status, 'refunded'),
+        eq(purchasesTable.status, 'paid'),
       ),
     )
 

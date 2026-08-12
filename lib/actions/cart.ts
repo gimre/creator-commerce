@@ -3,9 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
+import { APP_CURRENCY } from '@/lib/currency'
 import { authPathWithNext } from '@/lib/schemas/auth'
 import { MAX_CART_ITEMS } from '@/lib/schemas/cart'
-import { clearCart, commitCart, readCartIds } from '@/lib/server/cart'
+import { commitCart, readCartIds } from '@/lib/server/cart'
+import { createCheckoutSession } from '@/lib/server/checkout'
 import { getCartProducts } from '@/lib/server/dal/products'
 import {
   createPurchases,
@@ -88,8 +90,9 @@ export async function checkoutAction(): Promise<void> {
     redirect(authPathWithNext('/login', '/cart'))
   }
 
-  // Resolved rather than committed: the cart is about to be cleared either way,
-  // so writing the pruned set first would be a cookie round trip for nothing.
+  // Resolved rather than committed: the cart survives this action either way —
+  // it is cleared on the way back from a paid session, not here — so writing the
+  // pruned set now would be a cookie round trip for nothing.
   const products = await getCartProducts(await readCartIds())
 
   // A replayed submit on an emptied cart lands back on the cart page rather than
@@ -112,9 +115,20 @@ export async function checkoutAction(): Promise<void> {
   }
 
   // One id across the order, so a multi-product checkout can be shown and
-  // receipted as a single thing. Stripe's session id will join it here.
+  // receipted as a single thing. It is also the Stripe idempotency key.
   const orderId = crypto.randomUUID()
-  const purchases = await createPurchases(
+
+  // Session before rows, which is the order that cannot lose money. If the insert
+  // throws, the redirect below never runs and the buyer never reaches a payable
+  // page — the orphaned session just expires. The other way round, a failed
+  // session create would leave pending rows for an order that does not exist.
+  const session = await createCheckoutSession({
+    buyer: { id: user.id, email: user.email },
+    orderId,
+    products: purchasable,
+  })
+
+  await createPurchases(
     purchasable.map((product) => ({
       orderId,
       buyerId: user.id,
@@ -124,32 +138,31 @@ export async function checkoutAction(): Promise<void> {
       // for, regardless of what the product says later.
       productName: product.name,
       priceInCents: product.priceInCents,
-      currency: product.currency,
-      // Stripe will insert 'pending' here and move it on webhook confirmation.
-      // Until then payment is assumed.
-      status: 'paid' as const,
+      currency: APP_CURRENCY,
+      // Nothing is owned until Stripe says so. app/checkout/return/route.ts or
+      // the webhook promotes these, whichever arrives first.
+      status: 'pending' as const,
+      stripeCheckoutSessionId: session.id,
     })),
   )
 
-  // After the insert, so a failed write leaves the cart intact and the buyer can
-  // simply try again.
-  await clearCart()
-  // Before the redirect, since redirect() throws and the destination's back
-  // navigation should not find a prefetched cart full of items.
+  // Deliberately no clearCart() here. The buyer may still cancel, and cancelling
+  // has to land them back on a cart that still holds what they were buying.
+  // Clearing happens in the return handler, once payment is confirmed.
+  //
+  // revalidatePath because the return trip — cancelled or paid — must not be
+  // served a prefetched cart from before this point.
   revalidatePath('/cart')
-  revalidatePath('/purchases')
-  revalidatePath('/sales')
 
-  // Every row conflicted, which means a concurrent submit already recorded this
-  // order. The buyer owns everything they asked for, so this is a success — but
-  // not one to congratulate them on a second time. Send them to the history that
-  // now holds it.
-  if (purchases.length === 0) {
-    redirect('/purchases')
+  // Typed nullable because a session can be created in states that have no hosted
+  // page. `mode: 'payment'` is not one of them, so this is a guard against the
+  // type rather than an expected path.
+  if (!session.url) {
+    redirect('/cart')
   }
 
-  // The count travels in the url because the cookie is gone by the time the
-  // success page renders, and it counts rows actually written rather than items
-  // submitted.
-  redirect(`/checkout/success?items=${purchases.length}`)
+  // External absolute urls are supported, and from a server action redirect()
+  // answers with a 303 — so the cart's plain <form action={checkoutAction}> keeps
+  // working with JS disabled.
+  redirect(session.url)
 }

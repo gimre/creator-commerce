@@ -23,11 +23,19 @@ export function parseHandleSegment(segment: string) {
   return decodeURIComponent(segment).replace(/^@/, "")
 }
 
-// Cents + ISO currency code -> "$29.00". Prices are stored in cents.
-export function formatPrice(priceInCents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-    priceInCents / 100,
-  )
+// 5_242_880 -> "5 MB". Binary units, because that is what the file-size limit is
+// expressed in and a file that "just fits" must not render as 105 MB against a
+// 100MB cap. One decimal place below 10 so a 1.4 MB file doesn't read as 1 MB.
+export function formatFileSize(bytes: number) {
+  const units = ["B", "KB", "MB", "GB"]
+  let size = bytes
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit++
+  }
+  const decimals = unit === 0 || size >= 10 ? 0 : 1
+  return `${size.toFixed(decimals)} ${units[unit]}`
 }
 
 // "Gabi Ionescu" -> "GI". The user table has no initials column.

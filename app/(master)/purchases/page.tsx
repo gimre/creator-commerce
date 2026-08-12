@@ -18,7 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { formatPrice } from "@/lib/utils"
+import { formatPrice } from "@/lib/currency"
 
 export const metadata: Metadata = {
   title: "Purchases",
@@ -97,7 +97,7 @@ export default async function PurchasesPage() {
                   {DATE_FORMAT.format(purchase.createdAt)}
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  {formatPrice(purchase.priceInCents, purchase.currency)}
+                  {formatPrice(purchase.priceInCents)}
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end">

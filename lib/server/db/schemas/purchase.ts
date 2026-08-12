@@ -18,8 +18,8 @@ export const purchasesTable = pgTable(
   {
     id: integer().primaryKey().generatedAlwaysAsIdentity(),
     // Shared by every row one checkout writes, so a multi-product order can be
-    // shown and receipted as one thing. Stripe's checkout session id will hang
-    // off the same grouping.
+    // shown and receipted as one thing. It is also the Stripe idempotency key
+    // for the session that order created.
     orderId: text('order_id').notNull(),
     // Both sides restrict rather than cascade, unlike products.ownerId. A
     // purchase is a financial record belonging to two parties: cascading a
@@ -44,12 +44,16 @@ export const purchasesTable = pgTable(
     productName: varchar('product_name', { length: 255 }).notNull(),
     priceInCents: integer('price_in_cents').notNull(),
     currency: varchar({ length: 3 }).notNull(),
+    // 'pending' is the safe default: a row that arrived without an explicit
+    // status is one nobody has confirmed payment for. Only the webhook and the
+    // checkout return handler promote it.
     status: varchar({ length: 16 })
       .notNull()
-      .default('paid')
+      .default('pending')
       .$type<PurchaseStatus>(),
-    // Null until Stripe lands. Both nullable so today's direct-write checkout
-    // and tomorrow's webhook flow share one table.
+    // Written when the session is created; the payment intent lands with the
+    // confirmation. Nullable because rows predating Stripe have neither, and
+    // because a pending row has no intent yet.
     stripeCheckoutSessionId: text('stripe_checkout_session_id'),
     stripePaymentIntentId: text('stripe_payment_intent_id'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -76,12 +80,21 @@ export const purchasesTable = pgTable(
       table.id,
     ),
     // Own it once. A digital product grants lifetime access, so a second
-    // purchase is a support ticket rather than a sale. Refunded rows are
-    // excluded from the constraint so a refunded product can be bought again;
-    // the predicate is literal SQL, which is what makes it safe here.
+    // purchase is a support ticket rather than a sale.
+    //
+    // Only paid rows are constrained. Pending ones are deliberately outside it:
+    // an abandoned Stripe session leaves its rows pending forever, and under a
+    // `status <> 'refunded'` predicate those would permanently block the buyer
+    // from ever buying that product. Refunded rows stay outside for the original
+    // reason — a refunded product can be bought again. The predicate is literal
+    // SQL, which is what makes it safe here.
+    //
+    // What this costs: pending rows no longer collide, so createPurchases'
+    // onConflictDoNothing no longer dedupes a double-submitted checkout. See the
+    // note there.
     uniqueIndex('purchases_buyerId_productId_unq')
       .on(table.buyerId, table.productId)
-      .where(sql`status <> 'refunded'`),
+      .where(sql`status = 'paid'`),
   ],
 )
 

@@ -13,7 +13,10 @@ import {
 import { revalidateStorefront } from '@/lib/server/revalidate'
 import { deleteUploadedFiles } from '@/lib/server/uploadthing'
 import { requireUser } from '@/lib/server/session'
-import { createProductSchema } from '@/lib/schemas/product'
+import {
+  createProductSchema,
+  createProductWithFileSchema,
+} from '@/lib/schemas/product'
 
 export type ProductFormState = {
   fieldErrors?: Record<string, string[]>
@@ -26,22 +29,36 @@ export async function createProductAction(
 ): Promise<ProductFormState> {
   const user = await requireUser()
 
-  const parsed = createProductSchema.safeParse(Object.fromEntries(formData.entries()))
+  const parsed = createProductWithFileSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  )
 
   if (!parsed.success) {
     const { fieldErrors, formErrors } = z.flattenError(parsed.error)
     return { fieldErrors, formError: formErrors[0] }
   }
 
-  const { name, description, price, status } = parsed.data
+  const { name, description, price, status, fileKey } = parsed.data
 
-  await createProduct({
+  const product = await createProduct({
     ownerId: user.id,
     name,
     description: description || null,
     priceInCents: Math.round(price * 100),
     status,
+    fileKey,
   })
+
+  // The key named no upload of this user's. In practice that is a form left open
+  // across a sign-out, or one submitted with a key the browser invented — either
+  // way the fix is the same, so it is reported on the field that carries it.
+  if (!product) {
+    return {
+      fieldErrors: {
+        fileKey: ['That upload could not be found. Please choose the file again.'],
+      },
+    }
+  }
 
   revalidatePath('/products')
   revalidateStorefront()

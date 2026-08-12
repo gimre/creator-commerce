@@ -15,7 +15,7 @@ const STEPS = [
   },
   {
     title: "Set a price",
-    body: "Pick a price in USD. Simple round numbers convert best when you're starting out — you can change it anytime.",
+    body: "Pick a price in RON. Simple round numbers convert best when you're starting out — you can change it anytime.",
   },
   {
     title: "Publish to your storefront",

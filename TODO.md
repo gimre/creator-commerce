@@ -42,6 +42,44 @@
   `deleteProductAction`, the second from the upload callback when the append
   returns null.
 
+- **Uploaded files keep their original filenames, so UploadThing's UI is
+  unusable for tracking.** `productImage` never renames anything, so storage is a
+  flat list of `IMG_4821.jpg` / `screenshot.png` with nothing tying a file to an
+  owner or a product. There is no way to answer "which files belong to this
+  seller" from the dashboard, and orphan hunting (see above) has no handle either.
+
+  The rename belongs in the existing `.middleware()` in
+  `lib/server/uploadthing.ts`, which already resolves `ownerId` and `productId`:
+  return the `UTFiles` marker (`import { UTFiles } from 'uploadthing/server'`)
+  alongside the metadata and override each file's `name`, e.g.
+
+  ```ts
+  return {
+    ownerId: user.id,
+    productId: product.id,
+    [UTFiles]: files.map((file, i) => ({
+      ...file,
+      name: `${user.id}/${product.id}/${Date.now()}-${i}${extname(file.name)}`,
+      customId: `${product.id}:${crypto.randomUUID()}`,
+    })),
+  }
+  ```
+
+  Two decisions to make first:
+  - **Scheme.** `ownerId/productId/...` reads well in the UI but the original
+    filename is then lost; keeping a slugified tail (`ownerId-productId-<slug>`)
+    trades some noise for provenance. Whatever is picked has to be stable and
+    parseable, otherwise it is decoration.
+  - **`customId` or not.** It is a separate, indexable field and UTApi can fetch
+    and delete by it, which would let us drop `fileKeyFromUrl` url-parsing in
+    `deleteUploadedFiles`. It must be globally unique, so it cannot just be the
+    productId.
+
+  Note this only changes files uploaded from then on — existing rows keep their
+  current names, and UploadThing's rename API (`utapi.renameFiles`) would be
+  needed for a backfill. Not urgent unless the new scheme is something reads
+  depend on.
+
 ## Image optimization
 
 Baseline is already in place: no raw `<img>` anywhere, `remotePatterns` set for
@@ -157,6 +195,44 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
 - **Refunds have no path.** `purchaseStatus` includes `'refunded'` and both the
   unique index and `getPurchasedProductIds` respect it, but nothing can set it
   yet. Stripe webhooks will.
+
+- **"One row per product per buyer, unless the status differs" is the wrong
+  model.** Wiring Stripe narrowed `purchases_buyerId_productId_unq` to
+  `WHERE status = 'paid'`, so a buyer can now accumulate any number of `pending`
+  rows for a product they don't own. That was the cheap way to keep an abandoned
+  checkout from blocking a retry, and it is going to cause problems: the table no
+  longer has a single row that *is* the answer to "has this buyer got this
+  product", every read has to remember which statuses it means, and nothing stops
+  a pile of dead pending rows accumulating per buyer.
+
+  What we actually want is the strict rule — **one purchase per (buyer, product),
+  ever, whatever its status** — with the index back to covering every row. That is
+  only safe once stale pending rows cannot survive, because under the strict rule
+  a single abandoned checkout hides that product from that buyer permanently.
+
+  So the real missing piece is **pending cleanup**, and it needs to hold even when
+  the webhook never arrives:
+  - `checkout.session.expired` already deletes a session's pending rows, and
+    sessions are created with a 30-minute `expires_at` — but that only fires if
+    the webhook endpoint is reachable, so it cannot be the only mechanism.
+  - Add a sweep that does not depend on Stripe calling us: delete (or expire) any
+    `pending` row older than the session lifetime, either on a schedule or
+    opportunistically at checkout time for the buyer being served. Reconciling
+    against Stripe (`checkout.sessions.retrieve`) before deleting is the correct
+    version — a row is only dead once Stripe agrees its session is.
+  - Only after that lands can the index predicate go back to covering all rows,
+    at which point `getPurchasedProductIds` and the `ne('pending')` filters in
+    `getBuyerPurchases` / `getSellerSales` should be revisited together.
+
+- **Double-pay is possible, and only logged.** Two checkouts started in parallel
+  for the same product create two sessions; paying both leaves one line that needs
+  a manual refund. `fulfillCheckoutSession` catches the unique violation and
+  `console.error`s the session id rather than failing the webhook. Fixing it
+  properly means expiring a buyer's outstanding open sessions that overlap the new
+  cart before creating another. Note the trap: do **not** fix it by deleting old
+  pending rows at checkout time — the old Stripe session is still payable, and its
+  webhook would then find nothing to promote, turning a refundable duplicate into
+  a payment with no record at all.
 
 
 ## UX debt

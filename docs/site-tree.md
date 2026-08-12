@@ -31,7 +31,7 @@ app/
 │   ├── page.tsx                   # /cart        — public
 │   └── remove-from-cart-button.tsx
 ├── checkout/
-│   ├── success/page.tsx           # /checkout/success  — centered card
+│   ├── return/route.ts            # /checkout/return   — Stripe success URL, redirects
 │   └── cancel/page.tsx            # /checkout/cancel   — centered card
 └── (master)/
     ├── layout.tsx                 # dashboard shell (sidebar, topbar)
@@ -78,7 +78,7 @@ Creator-branded public shell: creator name/avatar header, minimal chrome. Buyer-
 
 | Route | Page | Archetype | Key features | Sessions |
 |---|---|---|---|---|
-| `/cart` | Cart | List | Products collected from storefronts. State is an HttpOnly cookie of product ids only — no quantities, one of each. Adding and viewing need no account; **checkout** is the gate, and it returns you (`/login?next=%2Fcart`) with the cart intact, since the cookie is untouched by signing in. Ids that no longer resolve to a published product are dropped on read and prunable on demand. Checkout clears the cart and redirects to `/checkout/success`. | S? |
+| `/cart` | Cart | List | Products collected from storefronts. State is an HttpOnly cookie of product ids only — no quantities, one of each. Adding and viewing need no account; **checkout** is the gate, and it returns you (`/login?next=%2Fcart`) with the cart intact, since the cookie is untouched by signing in. Ids that no longer resolve to a published product are dropped on read and prunable on demand. Checkout opens a Stripe hosted Checkout Session and writes `pending` purchase rows; the cart is **not** cleared until payment is confirmed, so cancelling returns here with everything still in it. | S? |
 
 ## 3. Centered-card layout
 
@@ -88,8 +88,9 @@ Single centered card, no nav. One shell design, two contexts: auth and checkout 
 |---|---|---|---|---|
 | `/login` | Login | Card | Better Auth email/password. `?next=` sets where to land afterwards, validated in `lib/schemas/auth.ts` (resolved through the URL parser and rejected unless it stays on this origin); defaults to `/dashboard` | S6 |
 | `/signup` | Registration | Card | Account creation + public `handle` selection. Carries `?next=` the same way, and the cross-links between the two forms preserve it | S6 |
-| `/checkout/success` | Payment confirmation | Card | Stripe success URL; confirmation + link to `/downloads` | S9 |
-| `/checkout/cancel` | Payment cancelled | Card | Stripe cancel URL; back to the product page | S9 |
+| `/checkout/cancel` | Payment cancelled | Card | Reachable by hand only — Stripe's `cancel_url` goes straight to `/cart`, which still holds everything. Back to cart | S9 |
+
+There is no confirmation page. Stripe's `success_url` is `/checkout/return`, a route handler rather than a page: it has to clear the cart cookie, which a page cannot do. It verifies the session with Stripe, fulfils the order itself so a slow webhook can't show the buyer an empty history, clears the cart, and redirects to `/purchases`.
 
 ## 4. Dashboard layout
 
@@ -115,11 +116,11 @@ Five page archetypes — design one template per archetype, reuse across pages. 
 |---|---|---|---|---|
 | `/dashboard` | Overview | Stats/overview | KPIs: revenue, units sold, top 5 products; onboarding checklist | S1, S10, S12, S18 |
 | `/products` | Product list | Data table | Filtering, search, pagination, Draft/Published status, duplicate | S1, S12 |
-| `/sales` | Sales | Data table | Live: rows from `purchases` scoped by `sellerId`, plus Revenue (per currency) and Units sold from `getSellerTotals`. Buyer column shows the buyer's email — the one place a user's email is exposed to another user | S1, S12 |
+| `/sales` | Sales | Data table | Live: rows from `purchases` scoped by `sellerId`, plus Revenue and Units sold from `getSellerTotals`. Both are paid rows only, and pending ones are filtered out of the table — an abandoned checkout is not a sale. Buyer column shows the buyer's email — the one place a user's email is exposed to another user | S1, S12 |
 | `/explore` | Product search | Grid | Marketplace-wide search over published products from other creators. `?q=` substring match on name/description (ILIKE, 3-char minimum, 300ms debounce), `?sort=newest\|oldest`, top 50, no pagination. Both filters live in the query string, so a search is shareable. | S? |
-| `/purchases` | Order history | Data table | Live: rows from `purchases` scoped by `buyerId` — product, creator, date, amount, download shortcut. Product name and price are snapshots taken at checkout, so a later rename or reprice doesn't rewrite history. The receipt link is gone until Stripe provides one. File access lives in `/downloads`. | ext |
-| `/downloads` | Downloads library | Data table | Current user's purchased files + protected download links; post-payment redirect target. Library view — order details live in `/purchases`. | S11 |
-| `/products/new` | Create product | Form | RHF + zod + next-safe-action form, price/currency validation | S7 |
+| `/purchases` | Order history | Data table | Live: rows from `purchases` scoped by `buyerId`, newest first, pending rows excluded — product, creator, date, amount, download shortcut. Product name and price are snapshots taken at checkout, so a later rename or reprice doesn't rewrite history. This is where `/checkout/return` lands after a confirmed payment. The receipt link is gone until Stripe provides one. File access lives in `/downloads`. | ext |
+| `/downloads` | Downloads library | Data table | Current user's purchased files + protected download links. Still mock: it needs a product asset column that `productsTable` does not have. Library view — order details live in `/purchases`. | S11 |
+| `/products/new` | Create product | Form | RHF + zod form, price validation. Single currency app-wide (`lib/currency.ts`), so there is nothing to pick | S7 |
 | `/products/{id}` | Edit product | Form | Digital asset + cover upload (UploadThing), status, SEO fields, AI page generation; own `loading.tsx` / `error.tsx` / `not-found.tsx` | S3, S7, S8, S14 |
 | `/settings` | Settings | Form | Profile, handle, account; delivery email (digital "shipping" address for receipts/delivery); email notification preferences | S2, ext |
 | `/wishlist` | Wishlist | Grid | Products saved from storefronts; card grid linking to public product page / Buy | ext |

@@ -8,8 +8,14 @@ import Link from "next/link"
 import { ChevronLeft, Trash2 } from "lucide-react"
 
 import type { ProductFormState } from "@/lib/actions/products"
+import { APP_CURRENCY } from "@/lib/currency"
 import { createProductSchema } from "@/lib/schemas/product"
 import { DeleteProductButton } from "@/components/delete-product-button"
+import {
+  ProductFileField,
+  ProductFileSummary,
+  useProductFileUpload,
+} from "@/components/product-file"
 import { ProductImages } from "@/components/product-images"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -37,6 +43,7 @@ export function ProductForm({
   product,
   productId,
   images = [],
+  file,
 }: {
   action: ProductFormAction
   // Prefill/display values for the edit case, in the client-safe form shape.
@@ -45,9 +52,13 @@ export function ProductForm({
   // and image uploads.
   productId?: number
   images?: string[]
+  // The product's digital file, when editing. Absent for a new product, which
+  // uploads one here, and for the rows that predate the feature.
+  file?: { name: string; sizeBytes: number }
 }) {
   const isNew = !product
   const [state, formAction, isPending] = useActionState(action, {})
+  const upload = useProductFileUpload()
 
   const {
     register,
@@ -67,23 +78,43 @@ export function ProductForm({
 
   // Surface server-side validation (e.g. rules the client can't check) back
   // onto the fields.
+  const { setError: setUploadError } = upload
   useEffect(() => {
     if (!state.fieldErrors) return
     for (const [field, messages] of Object.entries(state.fieldErrors)) {
-      if (messages?.[0]) {
-        setError(field as keyof FormValues, { message: messages[0] })
-      }
+      const message = messages?.[0]
+      if (!message) continue
+      // fileKey has no registered input to attach to — it is the upload field's,
+      // which renders its own errors.
+      if (field === "fileKey") setUploadError(message)
+      else setError(field as keyof FormValues, { message })
     }
-  }, [state.fieldErrors, setError])
+  }, [state.fieldErrors, setError, setUploadError])
 
   function submitWith(status: ProductStatus) {
     setValue("status", status)
     return handleSubmit((values) => {
+      // A product is never created without its file, so the submit refuses
+      // rather than producing something half-made that has to be repaired
+      // later. An upload still in flight is a wait, not an error the user
+      // caused, hence the different wording.
+      if (isNew && !upload.fileKey) {
+        upload.setError(
+          upload.isUploading
+            ? "Wait for the file to finish uploading"
+            : "A product file is required",
+        )
+        return
+      }
+
       const formData = new FormData()
       formData.set("name", values.name)
       if (values.description) formData.set("description", values.description)
       formData.set("price", String(values.price))
       formData.set("status", status)
+      // Only on create: the file is chosen once and the update action has no
+      // field for it.
+      if (isNew && upload.fileKey) formData.set("fileKey", upload.fileKey)
       startTransition(() => formAction(formData))
     })
   }
@@ -127,14 +158,14 @@ export function ProductForm({
           <Button
             type="submit"
             variant="outline"
-            disabled={isPending}
+            disabled={isPending || upload.isUploading}
             onClick={submitWith("draft")}
           >
             Save draft
           </Button>
           <Button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || upload.isUploading}
             onClick={submitWith("published")}
           >
             Publish
@@ -164,7 +195,7 @@ export function ProductForm({
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor="price">Price (USD)</Label>
+            <Label htmlFor="price">Price ({APP_CURRENCY})</Label>
             <Input
               id="price"
               placeholder="29.00"
@@ -191,6 +222,16 @@ export function ProductForm({
           </div>
         </CardContent>
       </Card>
+
+      {/* The digital product. Unlike images, it is chosen up front — a new
+          product uploads one here, and an existing one only displays what it
+          already has. Older products have no file, so there is nothing to show
+          for them. */}
+      {isNew ? (
+        <ProductFileField upload={upload} />
+      ) : (
+        file && <ProductFileSummary name={file.name} sizeBytes={file.sizeBytes} />
+      )}
 
       {/* Uploads attach to an existing row, so this only appears once the
           product has an id. New products get images after the first save. */}

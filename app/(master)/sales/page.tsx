@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatPrice } from "@/lib/utils"
+import { formatPrice } from "@/lib/currency"
 
 export const metadata: Metadata = {
   title: "Sales",
@@ -34,11 +34,6 @@ export default async function SalesPage() {
     getSellerSales(user.id),
     getSellerTotals(user.id),
   ])
-
-  // Units are the same rows whatever the currency, so they add up across the
-  // groups; revenue does not, which is why the query grouped it in the first
-  // place.
-  const units = totals.reduce((sum, total) => sum + total.units, 0)
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-4 p-6">
@@ -59,23 +54,8 @@ export default async function SalesPage() {
             <CardDescription>Revenue</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* One line per currency. A seller listing in both USD and EUR has
-                two revenues, not one sum. */}
-            <div className="flex flex-col gap-1.5">
-              {totals.length === 0 ? (
-                <div className="font-mono text-3xl leading-none font-medium tracking-[-0.02em]">
-                  {formatPrice(0, "USD")}
-                </div>
-              ) : (
-                totals.map((total) => (
-                  <div
-                    key={total.currency}
-                    className="font-mono text-3xl leading-none font-medium tracking-[-0.02em]"
-                  >
-                    {formatPrice(total.revenueInCents, total.currency)}
-                  </div>
-                ))
-              )}
+            <div className="font-mono text-3xl leading-none font-medium tracking-[-0.02em]">
+              {formatPrice(totals.revenueInCents)}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               paid orders, all time
@@ -88,7 +68,7 @@ export default async function SalesPage() {
           </CardHeader>
           <CardContent>
             <div className="font-mono text-3xl leading-none font-medium tracking-[-0.02em]">
-              {units}
+              {totals.units}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               paid orders, all time
@@ -138,7 +118,7 @@ export default async function SalesPage() {
                   {DATE_FORMAT.format(sale.createdAt)}
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  {formatPrice(sale.priceInCents, sale.currency)}
+                  {formatPrice(sale.priceInCents)}
                 </TableCell>
               </TableRow>
             ))

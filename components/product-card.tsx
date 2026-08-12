@@ -3,7 +3,8 @@ import Link from "next/link"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { Image } from "@/components/image"
 import { ProductImagePlaceholder } from "@/components/product-image-placeholder"
-import { cn, formatPrice } from "@/lib/utils"
+import { formatPrice } from "@/lib/currency"
+import { cn } from "@/lib/utils"
 
 export function ProductCover({
   images,
@@ -51,7 +52,6 @@ export type ProductCardProduct = {
   name: string
   description: string | null
   priceInCents: number
-  currency: string
   images: string[]
 }
 
@@ -92,7 +92,7 @@ export function ProductCard({
         )}
         <div className="mt-1 flex items-center justify-between gap-2">
           <span className="font-mono text-base font-medium">
-            {formatPrice(product.priceInCents, product.currency)}
+            {formatPrice(product.priceInCents)}
           </span>
           {inCart !== undefined && (
             <AddToCartButton

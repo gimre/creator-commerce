@@ -11,7 +11,7 @@ import { ProductCover } from "@/components/product-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { formatPrice } from "@/lib/utils"
+import { formatPrice } from "@/lib/currency"
 import { RemoveFromCartButton } from "./remove-from-cart-button"
 
 export const metadata: Metadata = {
@@ -143,7 +143,7 @@ function CartLine({
         <Badge variant="outline">Your product</Badge>
       ) : (
         <span className="font-mono text-[15px] font-medium">
-          {formatPrice(product.priceInCents, product.currency)}
+          {formatPrice(product.priceInCents)}
         </span>
       )}
       <RemoveFromCartButton productId={product.id} productName={product.name} />
@@ -181,33 +181,22 @@ function CartSummary({
     )
   }
 
-  // currency is a per-product column and a cart spans sellers, so the totals are
-  // grouped rather than summed. Adding a EUR product to a USD cart would
-  // otherwise print one confidently wrong number.
-  const totals = new Map<string, number>()
-  for (const product of products) {
-    totals.set(
-      product.currency,
-      (totals.get(product.currency) ?? 0) + product.priceInCents,
-    )
-  }
-
-  const entries = [...totals.entries()]
-  const single = entries.length === 1 ? entries[0] : null
+  // One sum, because the app charges in one currency — see lib/currency.ts. A
+  // cart spanning sellers is still a single Stripe session.
+  const total = products.reduce(
+    (sum, product) => sum + product.priceInCents,
+    0,
+  )
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
-        {entries.map(([currency, cents]) => (
-          <div key={currency} className="flex items-center justify-between">
-            <span className="text-[15px] text-muted-foreground">
-              {single ? "Total" : `Total (${currency})`}
-            </span>
-            <span className="font-mono text-lg font-medium">
-              {formatPrice(cents, currency)}
-            </span>
-          </div>
-        ))}
+        <div className="flex items-center justify-between">
+          <span className="text-[15px] text-muted-foreground">Total</span>
+          <span className="font-mono text-lg font-medium">
+            {formatPrice(total)}
+          </span>
+        </div>
         {excluded > 0 && (
           <p className="text-[13px] text-muted-foreground">
             {excluded === 1 ? "1 item is" : `${excluded} items are`} not included
@@ -222,9 +211,7 @@ function CartSummary({
            works without JS. */
         <form action={checkoutAction}>
           <Button type="submit" size="lg" className="w-full">
-            {single
-              ? `Checkout — ${formatPrice(single[1], single[0])}`
-              : "Checkout"}
+            Checkout — {formatPrice(total)}
           </Button>
         </form>
       ) : (

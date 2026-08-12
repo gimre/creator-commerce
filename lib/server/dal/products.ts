@@ -11,6 +11,7 @@ import { MAX_PRODUCT_IMAGES } from '@/lib/schemas/product'
 import db from '@/lib/server/db'
 import { user } from '@/lib/server/db/schemas/auth'
 import {
+  productUploadsTable,
   productsTable,
   type Product,
   type ProductStatus,
@@ -23,6 +24,10 @@ export type CreateProductInput = {
   description: string | null
   priceInCents: number
   status: ProductStatus
+  // The key of an upload already recorded for this owner. Only the key: the
+  // file's name and size are read back from that row, never taken from the
+  // caller, so a client cannot describe a file as something it is not.
+  fileKey: string
 }
 
 export type UpdateProductInput = {
@@ -34,12 +39,69 @@ export type UpdateProductInput = {
   status: ProductStatus
 }
 
-export async function createProduct(input: CreateProductInput): Promise<Product> {
+/**
+ * Records a file uploaded for a product that does not exist yet.
+ *
+ * Written only by the product-file route's completion callback, which is the
+ * one caller that knows a file's real name and size. `onConflictDoNothing`
+ * covers a retried callback: the key is unique per upload, so a second delivery
+ * describes a row that is already correct.
+ *
+ * The name is truncated rather than rejected. It is a label — the product is
+ * already uploaded by the time this runs, and a 300-character filename is no
+ * reason to throw the bytes away.
+ */
+export async function recordProductUpload(input: {
+  ownerId: string
+  key: string
+  name: string
+  sizeBytes: number
+}): Promise<void> {
+  await db
+    .insert(productUploadsTable)
+    .values({ ...input, name: input.name.slice(0, 255) })
+    .onConflictDoNothing({ target: productUploadsTable.key })
+}
+
+/**
+ * Creates a product from a file its owner has already uploaded.
+ *
+ * The upload is looked up scoped to the owner, so a guessed key belonging to
+ * someone else finds nothing and no product is written — the same shape of
+ * guarantee the owner-scoped updates below give. Returns null when the key
+ * matches no upload of theirs, which the caller reports rather than treating as
+ * a crash: the honest cause is a stale form whose upload was never recorded.
+ *
+ * Not a transaction, and it does not need to be. Nothing is mutated between the
+ * read and the insert — the upload row is left exactly as it was — so the only
+ * race is two products claiming one key at once, and the unique index on
+ * products.file_key settles that by refusing the second.
+ */
+export async function createProduct({
+  fileKey,
+  ...fields
+}: CreateProductInput): Promise<Product | null> {
+  const [upload] = await db
+    .select()
+    .from(productUploadsTable)
+    .where(
+      and(
+        eq(productUploadsTable.key, fileKey),
+        eq(productUploadsTable.ownerId, fields.ownerId),
+      ),
+    )
+    .limit(1)
+
+  if (!upload) return null
+
   const [product] = await db
     .insert(productsTable)
     .values({
-      ...input,
-      slug: slugify(input.name),
+      ...fields,
+      slug: slugify(fields.name),
+      fileKey: upload.key,
+      fileName: upload.name,
+      fileSizeBytes: upload.sizeBytes,
     })
     .returning()
 
@@ -209,7 +271,6 @@ export type ExploreProduct = {
   name: string
   description: string | null
   priceInCents: number
-  currency: string
   images: string[]
   createdAt: Date
   sellerHandle: string
@@ -265,7 +326,6 @@ export async function searchPublishedProducts({
       name: productsTable.name,
       description: productsTable.description,
       priceInCents: productsTable.priceInCents,
-      currency: productsTable.currency,
       images: productsTable.images,
       createdAt: productsTable.createdAt,
       sellerHandle: user.handle,
@@ -309,7 +369,6 @@ export type CartProduct = {
   slug: string
   name: string
   priceInCents: number
-  currency: string
   images: string[]
   // The owner id, not just their public identity: checkout records it as the
   // purchase's sellerId, and uses it to refuse a self-purchase.
@@ -344,7 +403,6 @@ export async function getCartProducts(ids: number[]): Promise<CartProduct[]> {
       slug: productsTable.slug,
       name: productsTable.name,
       priceInCents: productsTable.priceInCents,
-      currency: productsTable.currency,
       images: productsTable.images,
       sellerId: productsTable.ownerId,
       sellerHandle: user.handle,
