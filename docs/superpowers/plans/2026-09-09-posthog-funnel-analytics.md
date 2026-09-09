@@ -132,8 +132,12 @@ The option spellings below (`capture_pageview`, `autocapture`, `api_host`) have 
 Run:
 
 ```bash
-grep -n "capture_pageview\|autocapture\|api_host\|ui_host" node_modules/posthog-js/dist/module.d.ts | head -20
+grep -rn "capture_pageview\|autocapture\|api_host\|ui_host" node_modules/@posthog/types/dist/posthog-config.d.ts | head -20
 ```
+
+(In 1.428.11 `posthog-js` re-exports its config type from `@posthog/types`, so
+grepping `posthog-js/dist/module.d.ts` finds only some of the four. If the
+re-export moves again, follow it rather than assuming the names.)
 
 Expected: all four appear as properties of the config type. If `capture_pageview` is typed as something other than `boolean` (newer builds accept `boolean | 'history_change'`), `false` is still valid — proceed. If any name is absent, stop and report what the type actually offers rather than guessing.
 
@@ -376,7 +380,7 @@ Ask Gabi to create a PostHog project and add to `.env`:
 
 ```
 NEXT_PUBLIC_POSTHOG_KEY=phc_...
-NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 The host must match the project's region — `https://us.i.posthog.com` for a US project. Restart the dev server (`NEXT_PUBLIC_` variables are inlined at build time and are not picked up by hot reload).
@@ -1481,7 +1485,7 @@ import { scheduleAnalytics, scheduleEmail } from './background'
 The path `/i/v0/e/` is PostHog's current capture endpoint. Confirm it with a single request before relying on it in the flow — substitute the real key and host:
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://eu.i.posthog.com/i/v0/e/" \
+curl -s -o /dev/null -w "%{http_code}\n" -X POST "https://us.i.posthog.com/i/v0/e/" \
   -H 'content-type: application/json' \
   -d '{"api_key":"phc_...","event":"plan_smoke_test","distinct_id":"plan-check","properties":{}}'
 ```
@@ -1591,7 +1595,7 @@ import 'server-only'
  */
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST
 const projectId = process.env.POSTHOG_PROJECT_ID
-const personalKey = process.env.POSTHOG_PERSONAL_API_KEY
+const personalKey = process.env.POSTHOG_PRIVATE_KEY
 
 export const hasPostHogRead = Boolean(host && projectId && personalKey)
 
@@ -1763,16 +1767,25 @@ export function getCachedSellerConversion(
 }
 ```
 
-- [ ] **Step 3: Ask Gabi to add the read credentials**
+- [ ] **Step 3: Confirm the read credentials are present and scoped**
 
-He needs a **personal API key** (PostHog → Settings → Personal API keys), scoped with the `query:read` permission for the project, and the numeric project id from the project settings URL.
+Both already existed in `.env` before this plan started — a `phx_…`
+`POSTHOG_PRIVATE_KEY` and a numeric `POSTHOG_PROJECT_ID` — so nothing needs
+creating. Confirm they are still there without printing their values:
 
+```bash
+grep -c "^POSTHOG_PRIVATE_KEY=\|^POSTHOG_PROJECT_ID=" .env
 ```
-POSTHOG_PERSONAL_API_KEY=phx_...
-POSTHOG_PROJECT_ID=12345
-```
 
-These are secret and must not carry the `NEXT_PUBLIC_` prefix — that prefix would inline them into the browser bundle, handing every visitor read access to the whole project.
+Expected: `2`.
+
+Neither may carry the `NEXT_PUBLIC_` prefix; that would inline them into the
+browser bundle and hand every visitor read access to the whole project.
+
+The one thing that cannot be checked from here is the key's **scope**. A personal
+API key needs `query:read` for this project, and a key without it returns `403`
+rather than failing at any earlier point — which is exactly what Step 4's
+verification will surface, so do not pre-emptively assume it is wrong.
 
 - [ ] **Step 4: Verify the query against real data**
 
@@ -1815,7 +1828,7 @@ Expected: `{ rate: null, previousRate: null }` — not `{ rate: 0 }`. This is th
 
 - [ ] **Step 6: Verify the unconfigured case**
 
-Temporarily comment out `POSTHOG_PERSONAL_API_KEY` in `.env` and re-run the script.
+Temporarily comment out `POSTHOG_PRIVATE_KEY` in `.env` and re-run the script.
 
 Expected: `null`, with no error thrown and nothing logged.
 
@@ -2095,7 +2108,7 @@ Then reload. Expected: Conversion now appears without the skeleton pause, becaus
 - [ ] **Step 5: Verify the degraded cases**
 
 1. Sign in as a seller with no storefront views. Expected: `—`, no badge, no error.
-2. Comment out `POSTHOG_PERSONAL_API_KEY`, restart, reload `/dashboard`. Expected: `—`, and the other three KPIs unaffected. Restore it.
+2. Comment out `POSTHOG_PRIVATE_KEY`, restart, reload `/dashboard`. Expected: `—`, and the other three KPIs unaffected. Restore it.
 3. Set `POSTHOG_PROJECT_ID` to a nonexistent id, restart, reload. Expected: `—`, one `[analytics] conversion query responded 4xx` line in the server console, dashboard otherwise fine. Restore it.
 
 - [ ] **Step 6: Document it in CLAUDE.md**
@@ -2146,7 +2159,7 @@ Four variables, and both halves configure independently:
 
 - `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` — the write half.
   Public by design; the host must match the project's region.
-- `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` — the read half. Secret.
+- `POSTHOG_PRIVATE_KEY` and `POSTHOG_PROJECT_ID` — the read half. Secret.
   The `NEXT_PUBLIC_` prefix on either would inline it into the browser bundle and
   hand every visitor read access to the project.
 

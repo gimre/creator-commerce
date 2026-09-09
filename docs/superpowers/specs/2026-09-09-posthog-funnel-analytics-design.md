@@ -187,7 +187,7 @@ state, fetches and reshapes only — but sits under `analytics/` so the PostHog
 dependency stays in one folder.
 
 One HogQL round trip, via `POST /api/projects/{POSTHOG_PROJECT_ID}/query/`
-authenticated with `POSTHOG_PERSONAL_API_KEY`:
+authenticated with `POSTHOG_PRIVATE_KEY`:
 
 ```sql
 SELECT
@@ -267,7 +267,7 @@ does not.
 | --- | --- | --- |
 | `NEXT_PUBLIC_POSTHOG_KEY` | write | yes, safe in the browser |
 | `NEXT_PUBLIC_POSTHOG_HOST` | write | yes |
-| `POSTHOG_PERSONAL_API_KEY` | read | no |
+| `POSTHOG_PRIVATE_KEY` | read | no |
 | `POSTHOG_PROJECT_ID` | read | no |
 
 Absent credentials is a supported state, following
