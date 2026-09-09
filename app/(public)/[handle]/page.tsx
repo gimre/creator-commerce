@@ -93,6 +93,7 @@ export default async function StorefrontPage({
               sellerId={user.id}
               inCart={inCart(product.id)}
               draft={product.status === "draft"}
+              isOwner={isOwner}
               // The grid starts at the top of the page, so the first cover is
               // the LCP candidate.
               preload={index === 0}

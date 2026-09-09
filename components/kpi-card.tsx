@@ -52,7 +52,7 @@ export function KpiCard({
 /**
  * The same card with the value bar greyed out. Label and sub are real rather
  * than skeletal, because they are known before the query returns and a card
- * that already says "Conversion / storefront" does not reflow when it fills.
+ * that already says "Conversion / visitors" does not reflow when it fills.
  */
 export function KpiCardSkeleton({
   label,

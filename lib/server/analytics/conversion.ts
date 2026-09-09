@@ -43,6 +43,13 @@ export type SellerConversion = {
  * round trips would double both the latency and the rate-limit cost for one
  * number.
  *
+ * The `previousSince` floor is a hard edge, not fixed here: a purchase early
+ * in the prior window whose entry event fell before that floor counts toward
+ * `prev_buyers` with no matching `prev_viewers` for it, since the WHERE clause
+ * drops that earlier event entirely. The pp badge can then show a decline that
+ * is an artefact of where the window starts rather than a real drop. This is
+ * structural to any windowed funnel, not specific to this query.
+ *
  * Placeholders rather than interpolation. sellerId arrives from the session
  * rather than from a request, so this is not today's injection risk — but a
  * query assembled by concatenation is a habit worth not starting.

@@ -311,7 +311,8 @@ and `npm run build`.
 | Two-seller cart, checked out | Each seller's dashboard sees the purchase; `cart_viewed`, `checkout_started` and `purchase_completed` each fan out per seller with that seller's own subtotal. |
 | Webhook wins the race, then return route wins | Exactly one `purchase_completed` per seller per order either way. Force by paying with the return tab closed. |
 | Personal API key revoked mid-session | Conversion degrades to `—`, dashboard otherwise unaffected, one log line. |
-| Seller views own storefront and own product page | No `storefront_viewed`, no `product_viewed`. Their own denominator does not move. |
+| Seller views own storefront and own product page, and clicks their own Add-to-cart button | No `storefront_viewed`, no `product_viewed`, no `product_added_to_cart`. Their own denominator does not move. |
+| Signed in, discovers a product via `/explore` rather than the seller's storefront, buys it | The seller's Conversion counts that buyer in both the denominator (`product_viewed` or `product_added_to_cart` from the product page) and the numerator (`purchase_completed`) — the path the denominator widening exists to cover. |
 
 The identify case and the race case are the two that cannot be inferred by
 reading the code, and the identify case is load-bearing: wired wrong, every

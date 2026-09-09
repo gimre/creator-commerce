@@ -39,11 +39,18 @@ export function startPostHog(): void {
     // project the dashboard query reads with clicks and inputs nobody asked
     // for, and make the funnel harder to see rather than easier.
     autocapture: false,
-    // Explicit rather than left to default. This is currently PostHog's own
-    // default ('identified_only'), but the whole identify wiring — an
-    // anonymous visitor merging into the signed-in person on purchase — rests
-    // on it, and PostHog has changed such defaults before. Pinning it means a
-    // vendor default change cannot silently break the funnel.
+    // A deliberate change from PostHog's own default, not a pin of it: the
+    // SDK defaults to 'identified_only' (@posthog/types, posthog-config.d.ts),
+    // which would give every anonymous browser no person and no person_id.
+    // The conversion query counts its widened denominator with
+    // countDistinct(person_id) over anonymous entry events (see
+    // lib/server/analytics/conversion.ts), so it depends on those events
+    // getting person processing — deleting this line to "reduce config" would
+    // silently zero the denominator's anonymous half.
+    //
+    // It is also a cost decision, not just a correctness one: PostHog bills
+    // events that get person processing at a higher rate than anonymous
+    // events. Do not remove this without changing the query it feeds.
     person_profiles: 'always',
   })
 }

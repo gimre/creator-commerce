@@ -145,6 +145,7 @@ export default async function ProductPage({
                   size="lg"
                   className="flex-1"
                   label={inCart ? "In cart" : `Add to cart — ${price}`}
+                  isOwner={isOwner}
                 />
                 <Button size="lg" variant="outline">
                   <Heart />

@@ -165,11 +165,21 @@ own share.
 
 `identify()` runs at the login and signup call sites, not in a layout — resolving
 the session in the root layout would make every route dynamic, including the
-public home page. Without it, a buyer who browses both signed-out and signed-in
-is two different people in PostHog rather than one — each event's `person_id`
-still counts toward whichever side of the ratio it belongs to, so a rate is
-still computed, but that buyer's browsing now counts twice in the denominator,
-which deflates the rate rather than zeroing it.
+public home page. Without it, PostHog never learns a session exists, so
+signed-out and signed-in browsing in the same browser is already one anonymous
+person — that is not what identify buys.
+
+What it actually merges is two otherwise-disjoint populations: the browsing
+person, an anonymous `distinct_id` the browser generated on its own, and the
+purchase person, `distinct_id = buyerId` (see `lib/server/analytics/capture.ts`)
+— a value the browser never sent and has no way to derive. Without `identify()`
+those are two unrelated people rather than the numerator being a subset of the
+denominator, so a buyer's purchase does not connect back to their own browsing
+at all. For a single device that barely moves the rate, since the same browser
+still fired an entry event under its anonymous id and still counts as a viewer
+— the real damage shows up across devices, where the entry event lives on one
+anonymous person and the purchase on another, and neither half of that buyer's
+journey ever meets the other.
 
 A seller's own views of their own storefront and products are not captured —
 but only while the seller is signed in, since the exclusion checks
@@ -193,12 +203,7 @@ Four variables. Three are per-half; one is shared, which is easy to get wrong:
   hand every visitor read access to the project.
 
 `NEXT_PUBLIC_` variables are inlined into the bundle at build time, so they
-cannot be supplied only at runtime. A deploy that sets env at boot rather than
-at build ends up with a working read half — `POSTHOG_PRIVATE_KEY` and
-`POSTHOG_PROJECT_ID` are read at request time like any other server secret —
-and a write half whose events never send, which shows up as the Conversion
-card reading `0.0%` rather than the em dash that a fully unconfigured project
-renders.
+cannot be supplied only at runtime.
 
 Given the shared host, the two halves are otherwise independent: the public key
 alone captures events without filling the card, and the private key and project
@@ -213,7 +218,11 @@ Conversion divides unique buyers by unique people who entered the seller's
 funnel — any of `storefront_viewed`, `product_viewed` or
 `product_added_to_cart`, not storefront views alone, since `/explore` and
 shared product links reach a product page directly and skip the storefront
-entirely.
+entirely. Counting that denominator by `person_id` for visitors who never sign
+in relies on `person_profiles: 'always'` in `lib/client/posthog.ts`, a
+deliberate override of PostHog's `identified_only` default — and, since
+PostHog bills events with person processing higher than anonymous ones, a
+standing cost the widened denominator carries on purpose.
 
 The asymmetry worth knowing when reading the number: the denominator is
 measured in the browser and the numerator is measured on the server. The

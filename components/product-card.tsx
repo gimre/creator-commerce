@@ -74,6 +74,7 @@ export function ProductCard({
   preload,
   inCart,
   draft,
+  isOwner = false,
 }: {
   product: ProductCardProduct
   // Seller handle without the leading "@"; the link adds it back.
@@ -91,6 +92,8 @@ export function ProductCard({
   // cart path — getCartProducts filters to published, so the id would be
   // silently dropped — so the card offers the edit page instead.
   draft?: boolean
+  // Analytics only — passed straight through to AddToCartButton's isOwner.
+  isOwner?: boolean
 }) {
   return (
     // Not a <Link> root, because the cart button would then be a <button> inside
@@ -139,6 +142,7 @@ export function ProductCard({
                 inCart={inCart}
                 size="icon-sm"
                 className="relative z-10"
+                isOwner={isOwner}
               />
             )
           )}

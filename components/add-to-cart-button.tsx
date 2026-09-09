@@ -17,6 +17,7 @@ export function AddToCartButton({
   label,
   size = "default",
   className,
+  isOwner = false,
 }: {
   productId: number
   productName: string
@@ -36,6 +37,14 @@ export function AddToCartButton({
   size?: "sm" | "default" | "lg" | "icon-sm" | "icon"
   // Applies to the wrapper, since an action error renders below the button.
   className?: string
+  // Analytics only, like sellerId above. The button still renders and the
+  // action still runs for a seller adding their own product — only the
+  // capture is suppressed, mirroring how the two view events suppress the
+  // event rather than the page. Without this, a seller's own click would land
+  // in their own denominator and never their numerator (checkoutAction and
+  // the cart page both filter out sellerId === user.id), which can only ever
+  // depress their own conversion rate.
+  isOwner?: boolean
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +62,7 @@ export function AddToCartButton({
       // product_removed_from_cart: a funnel measures progress, and the cart's
       // real state at checkout is already carried by checkout_started's own
       // item_count.
-      if (adding && !result.error) {
+      if (adding && !result.error && !isOwner) {
         capture("product_added_to_cart", {
           seller_id: sellerId,
           product_id: productId,

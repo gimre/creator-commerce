@@ -193,7 +193,7 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
   numerator and not the denominator, and the rate reads a little high. It is
   clamped to 100% as a safety net.
 
-  The fix, if the number ever looks implausibly short against Stripe's session
+  The fix, if the number ever looks implausible against Stripe's session
   count, is a first-party ingest proxy — rewriting `/ingest/*` to PostHog's
   ingest and assets hosts so blockers see no third-party domain. It was
   considered and dropped when the feature was designed: it costs two rewrite

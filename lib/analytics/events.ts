@@ -1,10 +1,10 @@
 /**
  * The funnel contract.
  *
- * Environment-agnostic on purpose: the browser captures four of these, the
- * server captures one, and the dashboard query reads two back. One definition
- * means a renamed property breaks the build instead of silently emptying a
- * card three weeks later.
+ * Environment-agnostic on purpose: the browser captures five of these, the
+ * server captures one, and the dashboard query reads four event names back.
+ * One definition means a renamed property breaks the build instead of
+ * silently emptying a card three weeks later.
  *
  * Every event carries seller_id. Without it a seller's dashboard cannot scope
  * its query to its own storefront, which makes it a requirement rather than a
