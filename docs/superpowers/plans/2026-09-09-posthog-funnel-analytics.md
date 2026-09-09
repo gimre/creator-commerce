@@ -1740,12 +1740,31 @@ export async function getSellerConversion(
     }
 
     const body = (await response.json()) as {
-      results?: [number, number, number, number][]
+      results?: unknown[][]
     }
     const [row] = body.results ?? []
-    if (!row) return null
 
-    const [viewers, buyers, prevViewers, prevBuyers] = row
+    // A HogQL aggregate with no GROUP BY always returns exactly one four-column
+    // row, so reaching this is a PostHog-side anomaly rather than an expected
+    // path — which is why it logs, like the other two failure branches, instead
+    // of returning the silent null that means "not configured".
+    //
+    // The shape check is what keeps a malformed row from becoming a number. A
+    // short array is truthy, so `!row` alone would let the destructuring below
+    // yield undefined, and undefined / undefined is NaN — which would reach the
+    // dashboard as "NaN%", worse than the em dash it replaced.
+    if (
+      !row ||
+      row.length < 4 ||
+      !row.every((value) => typeof value === 'number')
+    ) {
+      console.error(
+        `[analytics] conversion query returned an unusable row for seller ${sellerId}`,
+      )
+      return null
+    }
+
+    const [viewers, buyers, prevViewers, prevBuyers] = row as number[]
 
     return {
       rate: toRate(buyers, viewers),
