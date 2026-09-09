@@ -63,6 +63,7 @@
 | `components/add-to-cart-button.tsx` | New `sellerId` and `priceInCents` props; capture on add. |
 | `lib/server/dal/products.ts` | Add `sellerId` to `ExploreProduct`. |
 | `lib/server/email/order.ts` | Use the shared `groupBySeller` in place of its own inline Map loop. |
+| `lib/analytics/events.ts` | Task 6 retires `FUNNEL_EVENTS`; `FunnelEventProps` is the one source of names. |
 | `lib/server/request/background.ts` | Extract the shared `after()` body; add `scheduleAnalytics`. |
 | `lib/server/request/checkout.ts` | Schedule the purchase capture beside the email. |
 | `app/(master)/dashboard/page.tsx` | Extract `KpiCard`; Conversion becomes a Suspense-wrapped async card. |
@@ -106,7 +107,7 @@ The typed contract both halves import, the browser singleton, and pageviews. Not
 **Interfaces:**
 - Consumes: nothing.
 - Produces:
-  - `FUNNEL_EVENTS` — the event-name map, `as const` (compile-time readonly; not `Object.freeze`d).
+  - `FUNNEL_EVENTS` — the event-name map, `as const`. **Retired in Task 6:** it duplicated the names `FunnelEventProps` already defines, nothing kept the two in sync, and once `captureServerEvent` is typed against `FunnelEvent` every call site is checked without it.
   - `type FunnelEvent = keyof FunnelEventProps`
   - `type FunnelEventProps` — the payload type per event name.
   - `hasPostHog: boolean`
@@ -1262,12 +1263,13 @@ The one event that is not a browser event. It must fire exactly once per order p
 
 **Files:**
 - Create: `lib/server/analytics/capture.ts`
+- Modify: `lib/analytics/events.ts` (retire `FUNNEL_EVENTS`)
 - Modify: `lib/server/email/order.ts` (onto the shared primitive)
 - Modify: `lib/server/request/background.ts`
 - Modify: `lib/server/request/checkout.ts`
 
 **Interfaces:**
-- Consumes: `FUNNEL_EVENTS` (Task 1), `groupBySeller` (Task 3), `Purchase` from `lib/server/db/schemas/purchase.ts`.
+- Consumes: `type FunnelEvent` (Task 1), `groupBySeller` (Task 3), `Purchase` from `lib/server/db/schemas/purchase.ts`.
 - Produces:
   - `capturePurchaseCompleted(purchases: Purchase[]): Promise<void>`
   - `scheduleAnalytics(task: () => Promise<void>, context: string): void`
@@ -1279,7 +1281,7 @@ Create `lib/server/analytics/capture.ts`:
 ```ts
 import 'server-only'
 
-import { FUNNEL_EVENTS } from '@/lib/analytics/events'
+import type { FunnelEvent } from '@/lib/analytics/events'
 import { groupBySeller } from '@/lib/group-by-seller'
 import type { Purchase } from '@/lib/server/db/schemas/purchase'
 
@@ -1307,7 +1309,11 @@ export const hasPostHogWrite = Boolean(key && host)
 
 async function captureServerEvent(
   distinctId: string,
-  event: string,
+  // FunnelEvent rather than string, so the server half is checked against the
+  // same contract the browser half is. An unchecked string here would be the
+  // one place in the funnel where a typo ships silently and shows up as a
+  // dashboard card that never fills.
+  event: FunnelEvent,
   properties: Record<string, unknown>,
 ): Promise<void> {
   const response = await fetch(`${host}/i/v0/e/`, {
@@ -1355,7 +1361,7 @@ export async function capturePurchaseCompleted(
   if (!first) return
 
   const sends = [...groupBySeller(purchases)].map(([sellerId, rows]) =>
-    captureServerEvent(first.buyerId, FUNNEL_EVENTS.purchaseCompleted, {
+    captureServerEvent(first.buyerId, 'purchase_completed', {
       seller_id: sellerId,
       order_id: first.orderId,
       product_ids: rows.map((row) => row.productId),
@@ -1378,6 +1384,25 @@ export async function capturePurchaseCompleted(
   }
 }
 ```
+
+Then delete `FUNNEL_EVENTS` from `lib/analytics/events.ts` — the whole
+`export const FUNNEL_EVENTS = {...} as const` block and nothing else.
+
+It was written as the single source of event names, but the design that actually
+emerged makes `FunnelEventProps` that source: its keys are what
+`capture<E extends FunnelEvent>` constrains a literal against, and now what
+`captureServerEvent` constrains too. So every call site is checked without it,
+and leaving it in means a *second* list of the same six names that nothing keeps
+in sync with the first — rename a key in one and the other still compiles.
+
+A review of Task 4 found it unreferenced anywhere in the repo; this task was
+going to be its only consumer. Confirm it is still unused before removing:
+
+```bash
+grep -rn "FUNNEL_EVENTS" --include='*.ts' --include='*.tsx' app components lib
+```
+
+Expected after the deletion: no output.
 
 - [ ] **Step 2: Put `sendOrderEmails` on the same primitive**
 
@@ -1574,6 +1599,10 @@ the log prefix, which is worth having.
 sendOrderEmails moves onto the same groupBySeller rather than keeping its own
 copy of the bucketing. Two copies is one bug fixable in one place and missed in
 the other; its receipt-before-lookup ordering is untouched.
+
+FUNNEL_EVENTS is retired. FunnelEventProps already defines the six names and is
+what constrains every call site now that the server capture is typed against
+FunnelEvent too, so the const was a second list nothing kept in sync.
 
 Claude-Session: https://claude.ai/code/session_01TVUgqWWrNTUTNW751dCii5"
 ```
