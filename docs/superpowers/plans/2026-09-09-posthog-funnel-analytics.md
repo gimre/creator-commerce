@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - **No test runner exists in this repo.** `package.json` has no test script and no test dependencies. Every task therefore ends with a concrete verification step — an exact command with its expected output, or an exact manual check with its expected observation — instead of a test file. Do not add a test framework; that is a separate decision, not part of this feature.
-- **Gabi runs all npm commands himself.** Do not run `npm install`, `npm run lint`, `npm run build`, or any drizzle script. When a step needs one, stop and ask him to run it, then continue from what he reports.
+- **Subagents may run `npm run lint` and `npx tsc --noEmit`, and may commit their own task.** Granted for this plan only, at the 2026-09-09 pre-flight. Gabi's standing preference is that he runs every npm script himself; this grant exists because the repo has no tests, so lint and tsc are the only automated gate a task can pass or fail on. Do not carry it forward to a later plan.
+- **Gabi keeps `npm install`, `npm run build`, `npm run dev` and every `schema:*` script.** When a step needs one, stop, list it under `Owed to Gabi` in the task report, and continue with everything that does not depend on it. Do not let a task stall on a check only he can run.
 - **`import 'server-only'`** at the top of every new module under `lib/server/`.
 - **`import 'client-only'`** at the top of every new module under `lib/client/`.
 - **Only `lib/server/request/` may import `next/headers`, `next/navigation`, `next/cache` or `next/server`.** This is why the cached conversion wrapper is a separate module from the query itself. Checkable with:
@@ -34,7 +35,8 @@
 | File | Responsibility |
 | --- | --- |
 | `lib/analytics/events.ts` | Event names and payload types. Environment-agnostic, imported by both sides. |
-| `lib/analytics/cart.ts` | `groupCartBySeller` — the per-seller fan-out used by `cart_viewed` and `checkout_started`. Pure. |
+| `lib/group-by-seller.ts` | `groupBySeller` — the one seller-grouping primitive, generic over `{ sellerId: string }`. Three consumers. |
+| `lib/analytics/cart.ts` | `groupCartBySeller` — the per-seller fan-out used by `cart_viewed` and `checkout_started`. Pure, built on the primitive. |
 | `lib/client/posthog.ts` | Browser singleton: init, typed `capture`, `identify`, `reset`. No-ops when unconfigured. |
 | `components/analytics/posthog-provider.tsx` | Mounts the SDK, fires pageviews on route change. |
 | `components/analytics/track-view.tsx` | Fires one named event on mount. |
@@ -60,11 +62,23 @@
 | `components/product-card.tsx` | New `sellerId` prop, threaded to `AddToCartButton`. |
 | `components/add-to-cart-button.tsx` | New `sellerId` and `priceInCents` props; capture on add. |
 | `lib/server/dal/products.ts` | Add `sellerId` to `ExploreProduct`. |
+| `lib/server/email/order.ts` | Use the shared `groupBySeller` in place of its own inline Map loop. |
 | `lib/server/request/background.ts` | Extract the shared `after()` body; add `scheduleAnalytics`. |
 | `lib/server/request/checkout.ts` | Schedule the purchase capture beside the email. |
 | `app/(master)/dashboard/page.tsx` | Extract `KpiCard`; Conversion becomes a Suspense-wrapped async card. |
 | `CLAUDE.md` | New Analytics section. |
 | `TODO.md` | The "Conversion has no data source" entry is resolved. |
+
+## Pre-flight decisions (2026-09-09)
+
+- **One seller-grouping primitive, not three.** The plan as written had
+  `capturePurchaseCompleted` duplicating the Map loop in `sendOrderEmails`, and a
+  third variant in the cart helper. Gabi chose extraction: `lib/group-by-seller.ts`
+  is created in Task 3 and all three call sites use it, `sendOrderEmails`
+  included. That widens Task 6 to touch `lib/server/email/order.ts`, which is
+  outside this feature otherwise.
+- **Subagents may run `npm run lint` and `npx tsc --noEmit`** — see Global
+  Constraints. This plan only.
 
 ## Deviation from the spec, decided at plan time
 
@@ -371,13 +385,15 @@ Load `/`, then navigate to `/explore`, then to `/cart`.
 
 Expected: PostHog's Activity view shows **three** `$pageview` events, one per URL. Three, not one — that is the check that the route-change listener works, and it is the only thing this task adds that a document-reload listener would get wrong.
 
-- [ ] **Step 9: Ask Gabi to lint and build**
+- [ ] **Step 9: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
-Expected: both pass. A build failure mentioning `useSearchParams` and "missing suspense boundary" means Step 5's `<Suspense>` wrapper was dropped.
+Expected: both pass.
+
+Neither catches a missing Suspense boundary — only `next build` does, and that is Gabi's. List under `Owed to Gabi`: **`npm run build`, and if it fails with `useSearchParams` / "missing suspense boundary", Step 5's `<Suspense>` wrapper was dropped.**
 
 - [ ] **Step 10: Commit**
 
@@ -536,10 +552,10 @@ Still in the same window: sign out, then load `/explore`.
 
 Expected: that pageview belongs to a **new anonymous person**, not to the account that just signed out.
 
-- [ ] **Step 7: Ask Gabi to lint**
+- [ ] **Step 7: Run lint and typecheck**
 
 ```bash
-npm run lint
+npm run lint && npx tsc --noEmit
 ```
 
 Expected: passes.
@@ -573,6 +589,7 @@ Three of the six steps: `storefront_viewed`, `product_viewed`, `cart_viewed`.
 
 **Files:**
 - Create: `components/analytics/track-view.tsx`
+- Create: `lib/group-by-seller.ts`
 - Create: `lib/analytics/cart.ts`
 - Modify: `app/(public)/[handle]/page.tsx`
 - Modify: `app/(public)/[handle]/[id]/[slug]/page.tsx`
@@ -582,6 +599,7 @@ Three of the six steps: `storefront_viewed`, `product_viewed`, `cart_viewed`.
 - Consumes: `capture`, `FunnelEvent`, `FunnelEventProps` (Task 1).
 - Produces:
   - `<TrackView event={...} props={...} />`
+  - `groupBySeller<T extends { sellerId: string }>(rows: T[]): Map<string, T[]>` — used again by Task 6 in two places.
   - `groupCartBySeller(products: { sellerId: string; priceInCents: number }[]): SellerCartGroup[]` where `type SellerCartGroup = { sellerId: string; itemCount: number; subtotalInCents: number }`
 
 - [ ] **Step 1: Write the view tracker**
@@ -625,15 +643,53 @@ export function TrackView<E extends FunnelEvent>({
 }
 ```
 
-- [ ] **Step 2: Write the cart fan-out helper**
+- [ ] **Step 2: Write the seller-grouping primitive**
+
+Three places in this codebase group rows by seller: `sendOrderEmails` (already,
+inline), the cart fan-out below, and Task 6's purchase capture. One primitive
+serves all three.
+
+Create `lib/group-by-seller.ts`:
+
+```ts
+/**
+ * The one seller-grouping primitive.
+ *
+ * A cart is assembled from /explore and an order is fulfilled from a cart, so
+ * anything downstream of either can span sellers: one order is N receipts, one
+ * cart is N funnels. Every one of those fan-outs is this same bucketing.
+ *
+ * Generic over the shape rather than over Purchase or CartProduct, so it needs
+ * no import from either side of the server boundary and all three consumers can
+ * share it.
+ *
+ * Insertion-ordered, because Map is: a caller iterating the result gets sellers
+ * in the order their first row appeared, which keeps output stable between
+ * identical inputs.
+ */
+export function groupBySeller<T extends { sellerId: string }>(
+  rows: T[],
+): Map<string, T[]> {
+  const bySeller = new Map<string, T[]>()
+
+  for (const row of rows) {
+    const existing = bySeller.get(row.sellerId)
+    if (existing) existing.push(row)
+    else bySeller.set(row.sellerId, [row])
+  }
+
+  return bySeller
+}
+```
+
+- [ ] **Step 3: Write the cart fan-out helper**
 
 Create `lib/analytics/cart.ts`:
 
 ```ts
+import { groupBySeller } from '@/lib/group-by-seller'
+
 /**
- * A cart is assembled from /explore and can hold products from several sellers,
- * so one cart is several sellers' funnels.
- *
  * Both cart_viewed and checkout_started fan out through this: one event per
  * distinct seller, carrying that seller's own share rather than the cart's
  * total. The alternative — a seller_ids array on a single event — cannot be
@@ -652,27 +708,18 @@ export type SellerCartGroup = {
 export function groupCartBySeller(
   products: { sellerId: string; priceInCents: number }[],
 ): SellerCartGroup[] {
-  const bySeller = new Map<string, SellerCartGroup>()
-
-  for (const product of products) {
-    const existing = bySeller.get(product.sellerId)
-    if (existing) {
-      existing.itemCount += 1
-      existing.subtotalInCents += product.priceInCents
-    } else {
-      bySeller.set(product.sellerId, {
-        sellerId: product.sellerId,
-        itemCount: 1,
-        subtotalInCents: product.priceInCents,
-      })
-    }
-  }
-
-  return [...bySeller.values()]
+  return [...groupBySeller(products)].map(([sellerId, rows]) => ({
+    sellerId,
+    itemCount: rows.length,
+    subtotalInCents: rows.reduce(
+      (total, product) => total + product.priceInCents,
+      0,
+    ),
+  }))
 }
 ```
 
-- [ ] **Step 3: Fire `storefront_viewed`**
+- [ ] **Step 4: Fire `storefront_viewed`**
 
 In `app/(public)/[handle]/page.tsx`, add the import:
 
@@ -696,7 +743,7 @@ The page already computes `isOwner`. Add the tracker as the first child of the o
       <div className="mb-6">
 ```
 
-- [ ] **Step 4: Fire `product_viewed`**
+- [ ] **Step 5: Fire `product_viewed`**
 
 In `app/(public)/[handle]/[id]/[slug]/page.tsx`, add the imports:
 
@@ -732,7 +779,7 @@ Then add the tracker as the first child of the page's outer `<div>`:
       )}
 ```
 
-- [ ] **Step 5: Fire `cart_viewed`**
+- [ ] **Step 6: Fire `cart_viewed`**
 
 In `app/cart/page.tsx`, add the imports:
 
@@ -766,7 +813,7 @@ Then, as the first child of the page's outer `<div className="mx-auto flex max-w
       ))}
 ```
 
-- [ ] **Step 6: Verify all three, including the owner exclusion**
+- [ ] **Step 7: Verify all three, including the owner exclusion**
 
 With PostHog configured, ask Gabi to run `npm run dev`, then:
 
@@ -775,24 +822,24 @@ With PostHog configured, ask Gabi to run `npm run dev`, then:
 3. Add it to the cart and load `/cart`. Expected: one `cart_viewed` with `item_count: 1` and `subtotal_in_cents` equal to the product's price.
 4. **Signed in as that seller**, load their own storefront and their own product page. Expected: **no** `storefront_viewed` and **no** `product_viewed`. This is the check that matters — it is the one the code cannot be read to confirm.
 
-- [ ] **Step 7: Verify the multi-seller fan-out**
+- [ ] **Step 8: Verify the multi-seller fan-out**
 
 Add products from two different sellers to one cart (via `/explore`), then load `/cart`.
 
 Expected: **two** `cart_viewed` events, one per `seller_id`, each with its own `item_count` and `subtotal_in_cents`, and the two subtotals summing to the cart total.
 
-- [ ] **Step 8: Ask Gabi to lint and build**
+- [ ] **Step 9: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
 Expected: both pass.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add components/analytics/track-view.tsx lib/analytics/cart.ts app/\(public\)/\[handle\]/page.tsx app/\(public\)/\[handle\]/\[id\]/\[slug\]/page.tsx app/cart/page.tsx
+git add components/analytics/track-view.tsx lib/group-by-seller.ts lib/analytics/cart.ts app/\(public\)/\[handle\]/page.tsx app/\(public\)/\[handle\]/\[id\]/\[slug\]/page.tsx app/cart/page.tsx
 git commit -m "feat(analytics): storefront, product and cart view events
 
 TrackView is generic over the event contract, so a name and a payload that
@@ -998,13 +1045,13 @@ In `app/(public)/[handle]/[id]/[slug]/page.tsx`, find the `<AddToCartButton>` in
         priceInCents={product.priceInCents}
 ```
 
-- [ ] **Step 5: Ask Gabi to typecheck via build**
+- [ ] **Step 5: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
-Expected: both pass. Because `sellerId` is required rather than optional, a missed call site is a build error naming the file — which is the point of making it required.
+Expected: both pass. Because `sellerId` is required rather than optional, a missed call site is a `tsc` error naming the file — which is the point of making it required.
 
 - [ ] **Step 6: Verify**
 
@@ -1141,10 +1188,10 @@ Then replace the `signedIn` branch:
 
 Delete the now-unused `checkoutAction` import from `app/cart/page.tsx` — `pruneCartAction` is still used, so keep that one.
 
-- [ ] **Step 3: Ask Gabi to lint and build**
+- [ ] **Step 3: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
 Expected: both pass. An "unused import" lint error on `checkoutAction` means Step 2's last line was missed.
@@ -1190,11 +1237,12 @@ The one event that is not a browser event. It must fire exactly once per order p
 
 **Files:**
 - Create: `lib/server/analytics/capture.ts`
+- Modify: `lib/server/email/order.ts` (onto the shared primitive)
 - Modify: `lib/server/request/background.ts`
 - Modify: `lib/server/request/checkout.ts`
 
 **Interfaces:**
-- Consumes: `FUNNEL_EVENTS` (Task 1), `Purchase` from `lib/server/db/schemas/purchase.ts`.
+- Consumes: `FUNNEL_EVENTS` (Task 1), `groupBySeller` (Task 3), `Purchase` from `lib/server/db/schemas/purchase.ts`.
 - Produces:
   - `capturePurchaseCompleted(purchases: Purchase[]): Promise<void>`
   - `scheduleAnalytics(task: () => Promise<void>, context: string): void`
@@ -1207,6 +1255,7 @@ Create `lib/server/analytics/capture.ts`:
 import 'server-only'
 
 import { FUNNEL_EVENTS } from '@/lib/analytics/events'
+import { groupBySeller } from '@/lib/group-by-seller'
 import type { Purchase } from '@/lib/server/db/schemas/purchase'
 
 /**
@@ -1261,9 +1310,9 @@ async function captureServerEvent(
 /**
  * One event per seller, not one per row.
  *
- * The grouping is the same shape sendOrderEmails already applies for the same
- * reason: one order can span several sellers, and each seller's funnel wants
- * their own units and their own revenue rather than the order's.
+ * Through the same groupBySeller sendOrderEmails uses, and for the same reason:
+ * one order can span several sellers, and each seller's funnel wants their own
+ * units and their own revenue rather than the order's.
  *
  * distinct_id is the buyer's user id, which resolves to the same PostHog person
  * as their anonymous browsing because identify() ran when they signed in. That
@@ -1280,14 +1329,7 @@ export async function capturePurchaseCompleted(
   const [first] = purchases
   if (!first) return
 
-  const bySeller = new Map<string, Purchase[]>()
-  for (const purchase of purchases) {
-    const existing = bySeller.get(purchase.sellerId)
-    if (existing) existing.push(purchase)
-    else bySeller.set(purchase.sellerId, [purchase])
-  }
-
-  const sends = [...bySeller].map(([sellerId, rows]) =>
+  const sends = [...groupBySeller(purchases)].map(([sellerId, rows]) =>
     captureServerEvent(first.buyerId, FUNNEL_EVENTS.purchaseCompleted, {
       seller_id: sellerId,
       order_id: first.orderId,
@@ -1312,7 +1354,42 @@ export async function capturePurchaseCompleted(
 }
 ```
 
-- [ ] **Step 2: Generalise the background scheduler**
+- [ ] **Step 2: Put `sendOrderEmails` on the same primitive**
+
+`lib/server/email/order.ts` has the inline Map loop that Task 3's `groupBySeller`
+generalises. Two copies of one bucketing is one bug fixable in one place and
+missed in the other, so the existing copy goes.
+
+Add the import:
+
+```ts
+import { groupBySeller } from '@/lib/group-by-seller'
+```
+
+and replace the loop:
+
+```ts
+  const bySeller = new Map<string, Purchase[]>()
+  for (const purchase of purchases) {
+    const existing = bySeller.get(purchase.sellerId)
+    if (existing) existing.push(purchase)
+    else bySeller.set(purchase.sellerId, [purchase])
+  }
+```
+
+with:
+
+```ts
+  const bySeller = groupBySeller(purchases)
+```
+
+Everything downstream — `[...bySeller.keys()]` into `getUserEmails`, and the
+`for (const [sellerId, rows] of bySeller)` send loop — is unchanged, because the
+helper returns the same insertion-ordered `Map<string, Purchase[]>` the loop
+built. Change nothing else in this file; its receipt-before-lookup ordering and
+its `allSettled` are load-bearing and were fixed deliberately in `5a16253`.
+
+- [ ] **Step 3: Generalise the background scheduler**
 
 `scheduleEmail`'s body is the generic one — defer, try, log with a prefix. Rather than copy it, extract it.
 
@@ -1367,7 +1444,7 @@ export function scheduleAnalytics(
 
 Leave the module's top docblock and `scheduleBackgroundTask` exactly as they are.
 
-- [ ] **Step 3: Schedule it in `fulfillAndNotify`**
+- [ ] **Step 4: Schedule it in `fulfillAndNotify`**
 
 In `lib/server/request/checkout.ts`, add the imports:
 
@@ -1399,7 +1476,7 @@ import { scheduleAnalytics, scheduleEmail } from './background'
   }
 ```
 
-- [ ] **Step 4: Confirm the capture endpoint before trusting it**
+- [ ] **Step 5: Confirm the capture endpoint before trusting it**
 
 The path `/i/v0/e/` is PostHog's current capture endpoint. Confirm it with a single request before relying on it in the flow — substitute the real key and host:
 
@@ -1413,44 +1490,47 @@ Expected: `200`. Then confirm `plan_smoke_test` appears in PostHog's Activity vi
 
 If it returns 404, the endpoint has moved — use `/capture/` instead and note the change in the commit message. Do not proceed to Step 6 without a 200 here, or a failure in the flow will be indistinguishable from a wiring bug.
 
-- [ ] **Step 5: Verify the request-layer boundary still holds**
+- [ ] **Step 6: Verify the request-layer boundary still holds**
 
 ```bash
 grep -rn "next/headers\|next/navigation\|next/cache\|next/server" lib/server --exclude-dir=request
+grep -rn "server/request" lib/server --include='*.ts' --include='*.tsx' | grep -v '^lib/server/request/'
 ```
 
-Expected: no output. `capture.ts` must not have pulled anything request-scoped in.
+Expected: the first prints only the prose comment at `lib/server/auth.ts:72`. The second prints only the two documented transitive importers — `lib/server/auth.ts` and `lib/server/uploadthing.ts` — plus a prose mention in `lib/server/checkout.ts`. Anything else is a new boundary crossing this task introduced.
 
-- [ ] **Step 6: Verify a real purchase**
+CLAUDE.md's rule is broader than the direct-import grep: a module outside `request/` may import *from* `request/` only if it is itself only ever entered from a request. This task adds no such importer — `capture.ts` and `conversion.ts` import nothing from `request/`, and the traffic runs the other way. `capture.ts` must not have pulled anything request-scoped in.
+
+- [ ] **Step 7: Verify a real purchase**
 
 With Stripe test mode and the dev server running, buy a product end to end using card `4242 4242 4242 4242`.
 
 Expected: exactly **one** `purchase_completed` in PostHog, with `order_id` matching the new `purchases` row, `units: 1`, and `revenue_in_cents` equal to the price. Its person is the buyer — the same person holding the earlier `storefront_viewed`, which is the funnel closing.
 
-- [ ] **Step 7: Verify the race produces exactly one event**
+- [ ] **Step 8: Verify the race produces exactly one event**
 
 Buy again, but close the browser tab at Stripe's payment screen immediately after submitting payment, so the return redirect never runs and only the webhook fulfils.
 
 Expected: still exactly **one** `purchase_completed`. Then check the reverse: complete a purchase normally with the Stripe CLI webhook forwarding stopped, so only the return route fulfils. Expected: again exactly one.
 
-- [ ] **Step 8: Verify a two-seller order**
+- [ ] **Step 9: Verify a two-seller order**
 
 Check out a cart holding products from two sellers.
 
 Expected: **two** `purchase_completed` events sharing one `order_id`, each with its own `seller_id`, `units` and `revenue_in_cents`, and the two revenues summing to the order total.
 
-- [ ] **Step 9: Ask Gabi to lint and build**
+- [ ] **Step 10: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
 Expected: both pass.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add lib/server/analytics/capture.ts lib/server/request/background.ts lib/server/request/checkout.ts
+git add lib/server/analytics/capture.ts lib/server/email/order.ts lib/server/request/background.ts lib/server/request/checkout.ts
 git commit -m "feat(analytics): capture purchase_completed server-side
 
 Keyed on the same promoted.length > 0 that already gates the order email,
@@ -1465,6 +1545,10 @@ half is a plain fetch regardless. A failed send is not retried.
 background.ts grows scheduleAnalytics over an extracted body rather than a
 second copy of the same after()/try/log. Separate from scheduleEmail only for
 the log prefix, which is worth having.
+
+sendOrderEmails moves onto the same groupBySeller rather than keeping its own
+copy of the bucketing. Two copies is one bug fixable in one place and missed in
+the other; its receipt-before-lookup ordering is untouched.
 
 Claude-Session: https://claude.ai/code/session_01TVUgqWWrNTUTNW751dCii5"
 ```
@@ -1741,14 +1825,17 @@ Restore the variable, then delete `scripts/check-conversion.ts`.
 
 ```bash
 grep -rn "next/headers\|next/navigation\|next/cache\|next/server" lib/server --exclude-dir=request
+grep -rn "server/request" lib/server --include='*.ts' --include='*.tsx' | grep -v '^lib/server/request/'
 ```
 
-Expected: no output. If `conversion.ts` appears here, `unstable_cache` was put in the wrong module.
+Expected: the first prints only the prose comment at `lib/server/auth.ts:72`. The second prints only the two documented transitive importers — `lib/server/auth.ts` and `lib/server/uploadthing.ts` — plus a prose mention in `lib/server/checkout.ts`. Anything else is a new boundary crossing this task introduced.
 
-- [ ] **Step 8: Ask Gabi to lint and build**
+CLAUDE.md's rule is broader than the direct-import grep: a module outside `request/` may import *from* `request/` only if it is itself only ever entered from a request. This task adds no such importer — `capture.ts` and `conversion.ts` import nothing from `request/`, and the traffic runs the other way. If `conversion.ts` appears here, `unstable_cache` was put in the wrong module.
+
+- [ ] **Step 8: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
 Expected: both pass.
@@ -2119,10 +2206,10 @@ the Drizzle windows' by up to the TTL — invisible in a percentage rounded to o
 decimal, and the TTL doing exactly its job.
 ```
 
-- [ ] **Step 9: Ask Gabi to lint and build**
+- [ ] **Step 9: Run lint and typecheck**
 
 ```bash
-npm run lint && npm run build
+npm run lint && npx tsc --noEmit
 ```
 
 Expected: both pass. An unused-import error in the dashboard page means Step 3's import cleanup was incomplete.
