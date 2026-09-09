@@ -7,6 +7,7 @@ import { getStorefrontProducts } from "@/lib/server/dal/products"
 import { getUserByHandle } from "@/lib/server/dal/users"
 import { getUser } from "@/lib/server/request/session"
 import { ProductCard } from "@/components/product-card"
+import { TrackView } from "@/components/analytics/track-view"
 import { parseHandleSegment } from "@/lib/utils"
 
 export async function generateMetadata({
@@ -49,6 +50,15 @@ export default async function StorefrontPage({
 
   return (
     <div className="mx-auto max-w-[1080px] px-6 pt-8 pb-16">
+      {/* Skipped for the owner. A seller refreshing their own storefront would
+          otherwise inflate their own denominator, and the sellers who look at
+          their page most would show the worst conversion. */}
+      {!isOwner && (
+        <TrackView
+          event="storefront_viewed"
+          props={{ seller_id: user.id, seller_handle: user.handle }}
+        />
+      )}
       <div className="mb-6">
         <h1 className="font-heading text-3xl font-medium tracking-[-0.02em]">
           Digital products by {user.name}
