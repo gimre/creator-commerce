@@ -139,6 +139,8 @@ export default async function ProductPage({
                 <AddToCartButton
                   productId={product.id}
                   productName={product.name}
+                  sellerId={user.id}
+                  priceInCents={product.priceInCents}
                   inCart={inCart}
                   size="lg"
                   className="flex-1"

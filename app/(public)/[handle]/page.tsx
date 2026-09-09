@@ -90,6 +90,7 @@ export default async function StorefrontPage({
               key={product.id}
               product={product}
               handle={user.handle}
+              sellerId={user.id}
               inCart={inCart(product.id)}
               draft={product.status === "draft"}
               // The grid starts at the top of the page, so the first cover is

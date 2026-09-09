@@ -106,6 +106,7 @@ async function ExploreResults({
             key={product.id}
             product={product}
             handle={product.sellerHandle}
+            sellerId={product.sellerId}
             inCart={inCart(product.id)}
             // Nothing above the grid but the header, so the first cover is the
             // LCP candidate.

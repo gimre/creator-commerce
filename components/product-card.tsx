@@ -70,6 +70,7 @@ export type ProductCardProduct = {
 export function ProductCard({
   product,
   handle,
+  sellerId,
   preload,
   inCart,
   draft,
@@ -77,6 +78,10 @@ export function ProductCard({
   product: ProductCardProduct
   // Seller handle without the leading "@"; the link adds it back.
   handle: string
+  // A prop rather than a field on ProductCardProduct: the storefront grid has
+  // one seller for the whole page and passes it once, while /explore is
+  // cross-seller and passes each row's own.
+  sellerId: string
   // Set by the grid on its first card only — see `Image`'s `preload`.
   preload?: boolean
   // Undefined means the caller has no cart context (a placeholder screen), and
@@ -129,6 +134,8 @@ export function ProductCard({
               <AddToCartButton
                 productId={product.id}
                 productName={product.name}
+                sellerId={sellerId}
+                priceInCents={product.priceInCents}
                 inCart={inCart}
                 size="icon-sm"
                 className="relative z-10"

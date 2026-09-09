@@ -438,6 +438,9 @@ export type ExploreProduct = {
   priceInCents: number
   images: string[]
   createdAt: Date
+  // The owner id alongside the public identity, so a cross-seller grid can
+  // attribute an add-to-cart to the right storefront's funnel.
+  sellerId: string
   sellerHandle: string
   sellerName: string
 }
@@ -493,6 +496,7 @@ export async function searchPublishedProducts({
       priceInCents: productsTable.priceInCents,
       images: productsTable.images,
       createdAt: productsTable.createdAt,
+      sellerId: user.id,
       sellerHandle: user.handle,
       sellerName: user.name,
     })
