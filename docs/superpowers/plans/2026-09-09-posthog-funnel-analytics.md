@@ -1842,7 +1842,12 @@ verification will surface, so do not pre-emptively assume it is wrong.
 
 - [ ] **Step 4: Verify the query against real data**
 
-Write a throwaway script — do not commit it — at `scripts/check-conversion.ts`:
+Write a throwaway script — do not commit it — at `scripts/check-conversion.ts`.
+Note `--conditions=react-server` in the command below, matching the repo's
+existing `cleanup:images` script: without it `import 'server-only'` throws,
+because that package resolves to a module whose only job is to fail outside
+Next's bundler. Wrap the body in an async IIFE — the script runs as CJS, so a
+bare top-level await will not parse.
 
 ```ts
 import { getSellerConversion } from '../lib/server/analytics/conversion'
@@ -1862,7 +1867,7 @@ console.log(
 Ask Gabi to run it with the id of the seller whose storefront was viewed and bought from in Tasks 3 and 6:
 
 ```bash
-npx tsx --env-file=.env scripts/check-conversion.ts <sellerId>
+npx tsx --conditions=react-server --env-file=.env scripts/check-conversion.ts <sellerId>
 ```
 
 Expected: `{ rate: <a number between 0 and 1>, previousRate: null }` — `previousRate` is null because no events exist in the 30-to-60-days-ago window on a project this new.
@@ -1874,7 +1879,7 @@ If it prints `null`, the credentials or the project id are wrong; the console wi
 Run the same script with a seller id that has no events at all:
 
 ```bash
-npx tsx --env-file=.env scripts/check-conversion.ts some-seller-with-no-traffic
+npx tsx --conditions=react-server --env-file=.env scripts/check-conversion.ts some-seller-with-no-traffic
 ```
 
 Expected: `{ rate: null, previousRate: null }` — not `{ rate: 0 }`. This is the check that a seller with no traffic gets an em dash rather than a fabricated 0%.
