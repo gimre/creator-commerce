@@ -13,15 +13,6 @@
  * Property names are snake_case because that is what reads naturally in
  * PostHog's own query builder, where these are typed by hand.
  */
-export const FUNNEL_EVENTS = {
-  storefrontViewed: 'storefront_viewed',
-  productViewed: 'product_viewed',
-  productAddedToCart: 'product_added_to_cart',
-  cartViewed: 'cart_viewed',
-  checkoutStarted: 'checkout_started',
-  purchaseCompleted: 'purchase_completed',
-} as const
-
 export type FunnelEventProps = {
   storefront_viewed: {
     seller_id: string

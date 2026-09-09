@@ -2,10 +2,11 @@ import 'server-only'
 
 import type Stripe from 'stripe'
 
+import { capturePurchaseCompleted } from '@/lib/server/analytics/capture'
 import { fulfillCheckoutSession } from '@/lib/server/checkout'
 import type { Purchase } from '@/lib/server/db/schemas/purchase'
 import { sendOrderEmails } from '@/lib/server/email/order'
-import { scheduleEmail } from './background'
+import { scheduleAnalytics, scheduleEmail } from './background'
 
 /**
  * Fulfilment plus the mail it triggers.
@@ -29,6 +30,18 @@ export async function fulfillAndNotify(
   if (promoted.length > 0) {
     scheduleEmail(
       () => sendOrderEmails(promoted),
+      `order ${promoted[0].orderId} (session ${session.id})`,
+    )
+
+    // After the receipt is queued, for the same reason the receipt is queued
+    // before the seller lookup: the buyer's mail is the obligation, and nothing
+    // else scheduled here may be able to delay it.
+    //
+    // Guarded by the same promoted.length > 0, which is what makes this
+    // exactly-once: an empty array is the normal case when the webhook and the
+    // return redirect race, and it means the winner already captured.
+    scheduleAnalytics(
+      () => capturePurchaseCompleted(promoted),
       `order ${promoted[0].orderId} (session ${session.id})`,
     )
   }
