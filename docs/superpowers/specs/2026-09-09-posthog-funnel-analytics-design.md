@@ -5,8 +5,9 @@ between landing on a seller's storefront and paying for their product, and fills
 the dashboard's Conversion card — the one KPI that has rendered an em dash since
 the live-dashboard work, because it had no data source.
 
-Two halves that configure independently: a write half that captures events, and a
-read half that queries them back for one seller's card.
+Two halves, sharing only the PostHog host, that otherwise configure independently:
+a write half that captures events, and a read half that queries them back for one
+seller's card.
 
 ## Goals
 
@@ -268,8 +269,8 @@ does not.
 
 | Variable | Half | Public |
 | --- | --- | --- |
+| `NEXT_PUBLIC_POSTHOG_HOST` | **both** | yes |
 | `NEXT_PUBLIC_POSTHOG_KEY` | write | yes, safe in the browser |
-| `NEXT_PUBLIC_POSTHOG_HOST` | write | yes |
 | `POSTHOG_PRIVATE_KEY` | read | no |
 | `POSTHOG_PROJECT_ID` | read | no |
 
@@ -279,9 +280,10 @@ no-ops, and `getSellerConversion` returns `null` so the Conversion card renders
 the same em dash it does today. A fresh clone runs, and no dev machine pollutes
 the production project by accident.
 
-The two halves configure independently. Public key alone captures events without
-filling the card; personal key alone fills nothing, because there is nothing to
-read.
+The host is shared — unset, neither half works whatever else is set. Given it,
+the halves are independent: the public key alone captures events without filling
+the card, and the private key and project id alone fill nothing, because there is
+nothing to read.
 
 New dependency: `posthog-js`. That is all.
 

@@ -176,13 +176,18 @@ by `lib/server/request/analytics.ts` — a separate module only because
 passing dates derived from `Date.now()` would make the key unique per request and
 the cache would never hit.
 
-Four variables, and both halves configure independently:
+Four variables. Three are per-half; one is shared, which is easy to get wrong:
 
-- `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` — the write half.
-  Public by design; the host must match the project's region.
+- `NEXT_PUBLIC_POSTHOG_HOST` — **both halves**. Public. Must match the project's
+  region, and with it unset neither half works no matter what else is set.
+- `NEXT_PUBLIC_POSTHOG_KEY` — the write half. Public by design.
 - `POSTHOG_PRIVATE_KEY` and `POSTHOG_PROJECT_ID` — the read half. Secret.
   The `NEXT_PUBLIC_` prefix on either would inline it into the browser bundle and
   hand every visitor read access to the project.
+
+Given the shared host, the two halves are otherwise independent: the public key
+alone captures events without filling the card, and the private key and project
+id alone fill nothing, because there is nothing to read.
 
 All four absent is a supported state, exactly as it is for email: the SDK never
 initialises, every capture returns early, and the Conversion card renders the em
