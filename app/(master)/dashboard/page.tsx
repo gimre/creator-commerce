@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { cache } from "react"
+import { cache, Suspense } from "react"
 
 import { getSellerProductCounts } from "@/lib/server/dal/products"
 import {
@@ -10,16 +10,10 @@ import {
 } from "@/lib/server/dal/purchases"
 import { requireUser } from "@/lib/server/request/session"
 import { formatPrice } from "@/lib/currency"
+import { ConversionCard } from "@/components/conversion-card"
+import { KpiCard, KpiCardSkeleton, type KpiBadge } from "@/components/kpi-card"
 import { TopProductsCard } from "@/components/top-products-card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card"
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -46,11 +40,6 @@ const getDashboardWindow = cache(() => {
     previousSince: new Date(now - 2 * PERIOD_DAYS * DAY_MS),
   }
 })
-
-type KpiBadge = {
-  label: string
-  variant: "default" | "destructive" | "secondary"
-}
 
 /**
  * A delta is a comparison, and a comparison needs both sides.
@@ -114,20 +103,6 @@ export default async function DashboardPage() {
       // Not a measurement over time, so there is no prior period to compare to.
       badge: null,
     },
-    {
-      // An em dash, not a number, and deliberately so. Nothing in this app
-      // measures storefront pageviews, so there is no denominator to divide
-      // sales by. The card stays because the gap is worth showing; when it fills
-      // it will be from third-party analytics (Plausible, PostHog, Vercel
-      // Analytics), not from a pageview table here. Counting views correctly
-      // means handling bots, cached responses and a write per render — and a
-      // number whose whole value is being trustworthy is not worth shipping a
-      // worse version of.
-      label: "Conversion",
-      value: "—",
-      sub: "storefront",
-      badge: null,
-    },
   ]
 
   return (
@@ -147,23 +122,24 @@ export default async function DashboardPage() {
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-4">
         {kpis.map((kpi) => (
-          <Card key={kpi.label} size="sm">
-            <CardHeader>
-              <CardDescription>{kpi.label}</CardDescription>
-              {kpi.badge && (
-                <CardAction>
-                  <Badge variant={kpi.badge.variant}>{kpi.badge.label}</Badge>
-                </CardAction>
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className="font-mono text-3xl leading-none font-medium tracking-[-0.02em]">
-                {kpi.value}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">{kpi.sub}</div>
-            </CardContent>
-          </Card>
+          <KpiCard
+            key={kpi.label}
+            label={kpi.label}
+            value={kpi.value}
+            sub={kpi.sub}
+            badge={kpi.badge}
+          />
         ))}
+        {/* Its own boundary: this one comes from PostHog's Query API, which is
+            slow and rate-limited, while the other three are already in hand
+            from the same render's Drizzle reads. Revenue, Units sold and
+            Products paint immediately and one slow analytics call cannot hold
+            them. */}
+        <Suspense
+          fallback={<KpiCardSkeleton label="Conversion" sub="storefront" />}
+        >
+          <ConversionCard sellerId={user.id} periodDays={PERIOD_DAYS} />
+        </Suspense>
       </div>
 
       {/* Both cards always render, empty or not: the layout stays put between

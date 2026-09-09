@@ -251,9 +251,12 @@ and Conversion becomes an async `components/conversion-card.tsx` inside its own
 `<Suspense>` with a skeleton. Revenue, Units sold and Products paint immediately
 and one slow PostHog call never delays them.
 
-`since` and `previousSince` pass down as props from the existing
-`getDashboardWindow()`, so the PostHog window and the Drizzle windows cannot
-disagree about where "last 30 days" starts.
+The dashboard passes `PERIOD_DAYS`, not resolved dates. The cached read computes
+its own window inside the cache scope, because dates derived from `Date.now()`
+in the cache key would be unique per request and the cache would never hit once.
+Both halves use the same period length, so the PostHog window's start can trail
+the Drizzle windows' by up to the TTL — invisible in a percentage rounded to one
+decimal, and the TTL doing exactly its job.
 
 ### Failure is a `—`
 

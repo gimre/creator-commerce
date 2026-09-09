@@ -137,6 +137,64 @@ Templates are viewed at `/dev/emails/<template>`, which 404s in production.
 `?send=<address>` on the same url sends that template's fixture through
 `sendEmail`.
 
+# Analytics
+
+Six events describe the funnel from a storefront view to a paid order. They are
+defined once in `lib/analytics/events.ts`, which is environment-agnostic because
+both halves import it — a renamed property breaks the build rather than quietly
+emptying a dashboard card weeks later.
+
+Four capture in the browser through `lib/client/posthog.ts`
+(`storefront_viewed`, `product_viewed`, `product_added_to_cart`, `cart_viewed`),
+one at the cart's submit (`checkout_started`), and one on the server
+(`purchase_completed`).
+
+The server one is the exception because a purchase is not a browser event: it is
+confirmed in two racing places, and a buyer whose browser died after paying still
+bought the thing. `capturePurchaseCompleted` is scheduled from `fulfillAndNotify`
+under the same `promoted.length > 0` that gates the order email, which is what
+makes it exactly-once — an empty array means the other entry point already
+captured.
+
+Every event carries `seller_id`, without which a seller's dashboard cannot scope
+its query. A cart can span sellers, so `cart_viewed`, `checkout_started` and
+`purchase_completed` fan out to one event per seller, each carrying that seller's
+own share.
+
+`identify()` runs at the login and signup call sites, not in a layout — resolving
+the session in the root layout would make every route dynamic, including the
+public home page. Without it the funnel's first five steps and its last one
+belong to two different people and every conversion rate reads as zero.
+
+A seller's own views of their own storefront and products are not captured.
+Otherwise the sellers who check their page most would show the worst conversion.
+
+The read side is one HogQL query in `lib/server/analytics/conversion.ts`, cached
+by `lib/server/request/analytics.ts` — a separate module only because
+`unstable_cache` imports `next/cache`, which nothing outside
+`lib/server/request/` may do. It computes its own window inside the cache scope;
+passing dates derived from `Date.now()` would make the key unique per request and
+the cache would never hit.
+
+Four variables, and both halves configure independently:
+
+- `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` — the write half.
+  Public by design; the host must match the project's region.
+- `POSTHOG_PRIVATE_KEY` and `POSTHOG_PROJECT_ID` — the read half. Secret.
+  The `NEXT_PUBLIC_` prefix on either would inline it into the browser bundle and
+  hand every visitor read access to the project.
+
+All four absent is a supported state, exactly as it is for email: the SDK never
+initialises, every capture returns early, and the Conversion card renders the em
+dash it rendered before it had a data source. A fresh clone runs with no PostHog
+project at all.
+
+One asymmetry worth knowing when reading the number: `purchase_completed` is
+measured server-side and cannot be blocked, while `storefront_viewed` is measured
+in the browser and can be. A visitor running an ad blocker who buys lands in the
+numerator and never the denominator, so the rate reads high rather than low. It
+is clamped to 100%.
+
 # Uploads
 
 Both kinds of upload are staged before they belong to anything, so a product

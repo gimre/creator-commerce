@@ -183,18 +183,18 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
 
 ## Purchases
 
-- **Conversion has no data source.** The dashboard's fourth KPI renders an em
-  dash. Revenue, Units sold and Products are windowed reads now
-  (`getSellerPeriodTotals`, `getSellerProductCounts`), but conversion needs a
-  denominator — storefront pageviews — and nothing anywhere counts them.
+- **Conversion is measured client-side and can be blocked.** The denominator is
+  `storefront_viewed`, captured in the browser, while the numerator
+  `purchase_completed` is captured on the server and cannot be blocked. A visitor
+  running an ad blocker who buys is therefore in the numerator and not the
+  denominator, and the rate reads high. It is clamped to 100%.
 
-  The card stays rather than being deleted, because a missing card says nothing
-  to the user or to the next developer while a fabricated percentage is worse
-  than both. When it fills it fills from third-party analytics (Plausible,
-  PostHog, Vercel Analytics), not from a home-grown pageview table: counting
-  views correctly means handling bots, cached responses and a write per render,
-  those products have solved all three, and a number whose whole value is being
-  trustworthy is not worth shipping a worse version of.
+  The fix, if the number ever looks implausible against Stripe's session count,
+  is a first-party ingest proxy — rewriting `/ingest/*` to PostHog's ingest and
+  assets hosts so blockers see no third-party domain. It was considered and
+  dropped when the feature was designed: it costs two rewrite rules, puts ingest
+  traffic on this app's own domain, and makes GeoIP depend on `X-Forwarded-For`
+  surviving the rewrite.
 
   The onboarding checklist that sat beside it is gone for the related reason.
   Two of its five items were unknowable — "Connect Stripe", where Connect does
