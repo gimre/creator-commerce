@@ -39,6 +39,12 @@ export function startPostHog(): void {
     // project the dashboard query reads with clicks and inputs nobody asked
     // for, and make the funnel harder to see rather than easier.
     autocapture: false,
+    // Explicit rather than left to default. This is currently PostHog's own
+    // default ('identified_only'), but the whole identify wiring — an
+    // anonymous visitor merging into the signed-in person on purchase — rests
+    // on it, and PostHog has changed such defaults before. Pinning it means a
+    // vendor default change cannot silently break the funnel.
+    person_profiles: 'always',
   })
 }
 

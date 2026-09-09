@@ -192,15 +192,21 @@ authenticated with `POSTHOG_PRIVATE_KEY`:
 
 ```sql
 SELECT
-  countDistinctIf(person_id, event = 'storefront_viewed'  AND timestamp >= {since}) AS viewers,
+  countDistinctIf(person_id, event IN {entryEvents} AND timestamp >= {since}) AS viewers,
   countDistinctIf(person_id, event = 'purchase_completed' AND timestamp >= {since}) AS buyers,
-  countDistinctIf(person_id, event = 'storefront_viewed'  AND timestamp <  {since}) AS prev_viewers,
+  countDistinctIf(person_id, event IN {entryEvents} AND timestamp <  {since}) AS prev_viewers,
   countDistinctIf(person_id, event = 'purchase_completed' AND timestamp <  {since}) AS prev_buyers
 FROM events
 WHERE timestamp >= {previousSince}
-  AND event IN ('storefront_viewed', 'purchase_completed')
+  AND (event IN {entryEvents} OR event = 'purchase_completed')
   AND properties.seller_id = {sellerId}
 ```
+
+`entryEvents` is `storefront_viewed`, `product_viewed`, `product_added_to_cart`
+— any event that can be a visitor's first step, not the storefront page alone.
+`/explore` and shared product links (`components/product-card.tsx`) reach a
+product page directly and skip the storefront entirely, so a denominator built
+from `storefront_viewed` alone routinely excluded real buyers.
 
 `person_id`, not `distinct_id` — that is what makes the identify stitching pay
 off, since a visitor who browsed anonymously and then signed in is one person.
@@ -211,9 +217,9 @@ Values go through HogQL placeholders rather than string interpolation.
 
 ### Conversion
 
-`buyers / viewers` over the window — unique purchasers divided by unique
-storefront visitors, which is what the card's existing `storefront` sub-label
-already claims.
+`buyers / viewers` over the window — unique purchasers divided by unique people
+who entered the seller's funnel by any of the three entry events, which is what
+the card's `visitors` sub-label claims.
 
 `viewers === 0` reshapes to `null`, not `0`. No denominator means no rate, the
 same reasoning `deltaBadge` already applies to a missing prior window.
@@ -222,7 +228,10 @@ The rate is clamped to `1.0`, and the card's comment records why: the numerator
 is measured server-side and cannot be blocked, while the denominator is measured
 in the browser and can be. A visitor running an ad blocker who buys lands in the
 numerator and never the denominator, so the rate reads high rather than low, and
-in the pathological case would exceed 100%. This is the cost of dropping the
+in the pathological case would exceed 100%. Widening the denominator to any
+funnel entry removes the routine cause of that; the clamp is now a safety net
+for this residual asymmetry rather than the main reason the rate could exceed
+100%. This is the cost of dropping the
 ingest proxy, taken deliberately.
 
 ### Badge in percentage points

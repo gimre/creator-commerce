@@ -36,12 +36,20 @@ export function CheckoutButton({
     <form
       action={checkoutAction}
       onSubmit={() => {
-        for (const group of sellerGroups) {
-          capture("checkout_started", {
-            seller_id: group.sellerId,
-            item_count: group.itemCount,
-            subtotal_in_cents: group.subtotalInCents,
-          })
+        try {
+          for (const group of sellerGroups) {
+            capture("checkout_started", {
+              seller_id: group.sellerId,
+              item_count: group.itemCount,
+              subtotal_in_cents: group.subtotalInCents,
+            })
+          }
+        } catch {
+          // Analytics must never be able to stop a checkout. This runs
+          // synchronously in the submit handler, unlike every other capture
+          // in this branch, so a throw here — an extension patching fetch, a
+          // persistence write failing — would otherwise take the buyer's
+          // checkout down with it.
         }
       }}
     >

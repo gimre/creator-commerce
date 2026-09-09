@@ -134,9 +134,16 @@ export default async function DashboardPage() {
             slow and rate-limited, while the other three are already in hand
             from the same render's Drizzle reads. Revenue, Units sold and
             Products paint immediately and one slow analytics call cannot hold
-            them. */}
+            them.
+
+            What the number does and does not include: the denominator is
+            every person who entered this seller's funnel, and it is measured
+            in the browser; the numerator is a completed purchase, measured on
+            the server and unblockable. An ad-blocking buyer can therefore
+            inflate the rate, which is why it is clamped. Full reasoning in
+            lib/server/analytics/conversion.ts. */}
         <Suspense
-          fallback={<KpiCardSkeleton label="Conversion" sub="storefront" />}
+          fallback={<KpiCardSkeleton label="Conversion" sub="visitors" />}
         >
           <ConversionCard sellerId={user.id} periodDays={PERIOD_DAYS} />
         </Suspense>

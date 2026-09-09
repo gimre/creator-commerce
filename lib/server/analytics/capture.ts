@@ -95,8 +95,13 @@ export async function capturePurchaseCompleted(
   const results = await Promise.allSettled(sends)
   for (const result of results) {
     if (result.status === 'rejected') {
+      // Same shape as the context checkout.ts passes to scheduleAnalytics
+      // (`order ${orderId} (session ${sessionId})`), so grepping [analytics]
+      // does not turn up two formats for one failure. This function has no
+      // session id in scope, so it names what it does have unambiguously
+      // instead: the order's purchase capture.
       console.error(
-        `[analytics] purchase_completed failed for order ${first.orderId}`,
+        `[analytics] order ${first.orderId} (purchase capture) failed`,
         result.reason,
       )
     }

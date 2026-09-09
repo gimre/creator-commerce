@@ -429,7 +429,8 @@ export async function getStorefrontProduct(
 }
 
 // Only the fields the explore grid renders, plus the seller identity its links
-// need. `owner_id` and `updated_at` have no business on a cross-seller list.
+// need. `updated_at` has no business on a cross-seller list; `sellerId` does,
+// below, for funnel attribution.
 export type ExploreProduct = {
   id: number
   slug: string

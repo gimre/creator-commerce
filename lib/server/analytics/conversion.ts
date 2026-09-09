@@ -28,6 +28,17 @@ export type SellerConversion = {
  * a visitor who browsed anonymously and then signed in to buy is one person
  * here, and counting distinct_ids would count them twice and halve the rate.
  *
+ * The denominator is any person who entered this seller's funnel, not only
+ * those who landed on the storefront page. `/explore` and shared product
+ * links (components/product-card.tsx) go straight to a product page and skip
+ * the storefront entirely, so counting storefront_viewed alone let those
+ * buyers sit outside the denominator — a seller with real sales would show a
+ * clamped 100% or an em dash, because the buyer never fired the one event the
+ * old query looked for. `entryEvents` counts a person as a viewer the moment
+ * they fire any of the three events that can start a visit — storefront_viewed,
+ * product_viewed or product_added_to_cart — whichever one the path they arrived
+ * by actually produces first.
+ *
  * Both windows in one query because the badge needs the prior period, and two
  * round trips would double both the latency and the rate-limit cost for one
  * number.
@@ -38,13 +49,13 @@ export type SellerConversion = {
  */
 const CONVERSION_QUERY = `
 SELECT
-  countDistinctIf(person_id, event = 'storefront_viewed'  AND timestamp >= toDateTime({since})) AS viewers,
+  countDistinctIf(person_id, event IN {entryEvents} AND timestamp >= toDateTime({since})) AS viewers,
   countDistinctIf(person_id, event = 'purchase_completed' AND timestamp >= toDateTime({since})) AS buyers,
-  countDistinctIf(person_id, event = 'storefront_viewed'  AND timestamp <  toDateTime({since})) AS prev_viewers,
+  countDistinctIf(person_id, event IN {entryEvents} AND timestamp <  toDateTime({since})) AS prev_viewers,
   countDistinctIf(person_id, event = 'purchase_completed' AND timestamp <  toDateTime({since})) AS prev_buyers
 FROM events
 WHERE timestamp >= toDateTime({previousSince})
-  AND event IN ('storefront_viewed', 'purchase_completed')
+  AND (event IN {entryEvents} OR event = 'purchase_completed')
   AND properties.seller_id = {sellerId}
 `
 
@@ -55,11 +66,14 @@ WHERE timestamp >= toDateTime({previousSince})
  * prior window: a seller with no visitors has not converted 0% of them, there
  * is simply nothing to divide.
  *
- * Clamped to 1. The numerator is measured server-side and cannot be blocked;
- * the denominator is measured in the browser and can be. A visitor running an
- * ad blocker who buys lands in the numerator and never the denominator, so the
- * rate reads high rather than low and could exceed 100%. That is the cost of
- * ingesting straight to PostHog rather than proxying, taken deliberately.
+ * Clamped to 1 as a safety net, not the main event now that the denominator is
+ * widened to any funnel entry. The clamp still earns its keep for the
+ * remaining asymmetry: the numerator is measured server-side and cannot be
+ * blocked, while the denominator is measured in the browser and can be. A
+ * visitor running an ad blocker who buys lands in the numerator and never the
+ * denominator, so the rate can still read a little high. That residual is the
+ * cost of ingesting straight to PostHog rather than proxying, taken
+ * deliberately.
  */
 function toRate(buyers: number, viewers: number): number | null {
   if (viewers === 0) return null
@@ -87,6 +101,11 @@ export async function getSellerConversion(
             query: CONVERSION_QUERY,
             values: {
               sellerId,
+              entryEvents: [
+                'storefront_viewed',
+                'product_viewed',
+                'product_added_to_cart',
+              ],
               since: since.toISOString(),
               previousSince: previousSince.toISOString(),
             },

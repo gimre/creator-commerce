@@ -144,9 +144,11 @@ defined once in `lib/analytics/events.ts`, which is environment-agnostic because
 both halves import it — a renamed property breaks the build rather than quietly
 emptying a dashboard card weeks later.
 
-Four capture in the browser through `lib/client/posthog.ts`
-(`storefront_viewed`, `product_viewed`, `product_added_to_cart`, `cart_viewed`),
-one at the cart's submit (`checkout_started`), and one on the server
+Five capture in the browser, all through the same `capture()` in
+`lib/client/posthog.ts`, from two places: three fire from `TrackView` on mount
+(`storefront_viewed`, `product_viewed`, `cart_viewed`), and two fire from a
+button handler (`product_added_to_cart` inside `AddToCartButton`'s transition,
+`checkout_started` inside the cart's submit). One more captures on the server
 (`purchase_completed`).
 
 The server one is the exception because a purchase is not a browser event: it is
@@ -163,11 +165,16 @@ own share.
 
 `identify()` runs at the login and signup call sites, not in a layout — resolving
 the session in the root layout would make every route dynamic, including the
-public home page. Without it the funnel's first five steps and its last one
-belong to two different people and every conversion rate reads as zero.
+public home page. Without it, a buyer who browses both signed-out and signed-in
+is two different people in PostHog rather than one — each event's `person_id`
+still counts toward whichever side of the ratio it belongs to, so a rate is
+still computed, but that buyer's browsing now counts twice in the denominator,
+which deflates the rate rather than zeroing it.
 
-A seller's own views of their own storefront and products are not captured.
-Otherwise the sellers who check their page most would show the worst conversion.
+A seller's own views of their own storefront and products are not captured —
+but only while the seller is signed in, since the exclusion checks
+`viewer?.id === user.id`. A signed-out or incognito seller viewing their own
+storefront enters their own denominator like any other visitor.
 
 The read side is one HogQL query in `lib/server/analytics/conversion.ts`, cached
 by `lib/server/request/analytics.ts` — a separate module only because
@@ -185,6 +192,14 @@ Four variables. Three are per-half; one is shared, which is easy to get wrong:
   The `NEXT_PUBLIC_` prefix on either would inline it into the browser bundle and
   hand every visitor read access to the project.
 
+`NEXT_PUBLIC_` variables are inlined into the bundle at build time, so they
+cannot be supplied only at runtime. A deploy that sets env at boot rather than
+at build ends up with a working read half — `POSTHOG_PRIVATE_KEY` and
+`POSTHOG_PROJECT_ID` are read at request time like any other server secret —
+and a write half whose events never send, which shows up as the Conversion
+card reading `0.0%` rather than the em dash that a fully unconfigured project
+renders.
+
 Given the shared host, the two halves are otherwise independent: the public key
 alone captures events without filling the card, and the private key and project
 id alone fill nothing, because there is nothing to read.
@@ -194,11 +209,18 @@ initialises, every capture returns early, and the Conversion card renders the em
 dash it rendered before it had a data source. A fresh clone runs with no PostHog
 project at all.
 
-One asymmetry worth knowing when reading the number: `purchase_completed` is
-measured server-side and cannot be blocked, while `storefront_viewed` is measured
-in the browser and can be. A visitor running an ad blocker who buys lands in the
-numerator and never the denominator, so the rate reads high rather than low. It
-is clamped to 100%.
+Conversion divides unique buyers by unique people who entered the seller's
+funnel — any of `storefront_viewed`, `product_viewed` or
+`product_added_to_cart`, not storefront views alone, since `/explore` and
+shared product links reach a product page directly and skip the storefront
+entirely.
+
+The asymmetry worth knowing when reading the number: the denominator is
+measured in the browser and the numerator is measured on the server. The
+numerator (`purchase_completed`) cannot be blocked; the denominator can be. A
+visitor running an ad blocker who buys lands in the numerator and never the
+denominator, so the rate reads high rather than low. It is clamped to 100% as
+a safety net for that case.
 
 # Uploads
 

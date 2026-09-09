@@ -33,7 +33,7 @@ function pointsBadge(
  * Query API call delays this card alone rather than the whole dashboard.
  *
  * An em dash whenever there is no answer — PostHog unconfigured, unreachable,
- * or the seller has no storefront views to divide by. That is the same thing
+ * or the seller has no funnel entries to divide by. That is the same thing
  * this card rendered before it had a data source, and the reason it was left
  * in place rather than deleted.
  */
@@ -51,7 +51,7 @@ export async function ConversionCard({
     <KpiCard
       label="Conversion"
       value={rate === null ? "—" : `${(rate * 100).toFixed(1)}%`}
-      sub="storefront"
+      sub="visitors"
       badge={pointsBadge(rate, conversion?.previousRate ?? null)}
     />
   )

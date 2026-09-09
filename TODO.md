@@ -183,23 +183,30 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
 
 ## Purchases
 
-- **Conversion is measured client-side and can be blocked.** The denominator is
-  `storefront_viewed`, captured in the browser, while the numerator
-  `purchase_completed` is captured on the server and cannot be blocked. A visitor
-  running an ad blocker who buys is therefore in the numerator and not the
-  denominator, and the rate reads high. It is clamped to 100%.
+- **Conversion's denominator is measured client-side and can be blocked.** The
+  denominator is any of `storefront_viewed`, `product_viewed` or
+  `product_added_to_cart` — whichever event the visitor's actual entry point
+  produces first, since `/explore` and shared product links reach a product
+  page directly and skip the storefront — captured in the browser, while the
+  numerator `purchase_completed` is captured on the server and cannot be
+  blocked. A visitor running an ad blocker who buys is therefore in the
+  numerator and not the denominator, and the rate reads a little high. It is
+  clamped to 100% as a safety net.
 
-  The fix, if the number ever looks implausible against Stripe's session count,
-  is a first-party ingest proxy — rewriting `/ingest/*` to PostHog's ingest and
-  assets hosts so blockers see no third-party domain. It was considered and
-  dropped when the feature was designed: it costs two rewrite rules, puts ingest
-  traffic on this app's own domain, and makes GeoIP depend on `X-Forwarded-For`
-  surviving the rewrite.
+  The fix, if the number ever looks implausibly short against Stripe's session
+  count, is a first-party ingest proxy — rewriting `/ingest/*` to PostHog's
+  ingest and assets hosts so blockers see no third-party domain. It was
+  considered and dropped when the feature was designed: it costs two rewrite
+  rules, puts ingest traffic on this app's own domain, and makes GeoIP depend
+  on `X-Forwarded-For` surviving the rewrite.
 
-  The onboarding checklist that sat beside it is gone for the related reason.
-  Two of its five items were unknowable — "Connect Stripe", where Connect does
-  not exist, and "Share your storefront link", which nothing tracks — and an
-  unchecked box is a claim about the user that we could not make.
+  The onboarding checklist that sat beside it is gone for its own reason, not
+  this one. "Connect Stripe" was one of five items and unknowable, since
+  Connect does not exist, and an unchecked box is a claim about the user that
+  we could not make. "Share your storefront link" was the other named example
+  at the time, but `storefront_viewed` now tracks exactly that, so it no
+  longer belongs on the unknowable list — the checklist just never came back
+  to account for it.
 
 - **No receipts.** The `/purchases` receipt column was removed rather than left
   as a dead link. It comes back with Stripe, which is what would generate them.
