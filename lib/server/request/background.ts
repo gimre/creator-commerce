@@ -19,11 +19,14 @@ import { after } from 'next/server'
 /**
  * Defer past the response, and never let the deferred work escape.
  *
- * Swallowing is deliberate and matches what fulfillCheckoutSession already did:
- * a dead SMTP connection — or an unreachable analytics endpoint — must not turn
- * a fulfilled order into a 500, because Stripe would then retry for three days
- * against a state that will never resolve. The rows are already promoted and
- * the retry promotes nothing.
+ * The response can no longer be turned into a 500 by this: after() runs the
+ * task once the response has already been sent, and Next catches whatever it
+ * throws itself — AfterContext.reportTaskError console.errors it and never
+ * rethrows (node_modules/next/dist/server/after/after-context.js). So this
+ * try/catch is not what keeps a failure off the response; after() already does
+ * that. What it buys instead is a log line that names the work — Next's own
+ * catch only prints "A promise passed to `after()` rejected" with no way to
+ * tell which one.
  *
  * `prefix` is the log channel, `context` whatever identifies the work in a log:
  * the order id, a user id.

@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { FunnelEvent } from '@/lib/analytics/events'
+import type { FunnelEvent, FunnelEventProps } from '@/lib/analytics/events'
 import { groupBySeller } from '@/lib/group-by-seller'
 import type { Purchase } from '@/lib/server/db/schemas/purchase'
 
@@ -24,16 +24,16 @@ import type { Purchase } from '@/lib/server/db/schemas/purchase'
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST
 
-export const hasPostHogWrite = Boolean(key && host)
+const hasPostHogWrite = Boolean(key && host)
 
-async function captureServerEvent(
+async function captureServerEvent<E extends FunnelEvent>(
   distinctId: string,
-  // FunnelEvent rather than string, so the server half is checked against the
-  // same contract the browser half is. An unchecked string here would be the
-  // one place in the funnel where a typo ships silently and shows up as a
-  // dashboard card that never fills.
-  event: FunnelEvent,
-  properties: Record<string, unknown>,
+  // Generic over the event, so the payload is checked too and not just the
+  // name. The browser half constrains both; anything less here would leave the
+  // server as the one place in the funnel where a renamed property compiles and
+  // ships the old shape.
+  event: E,
+  properties: FunnelEventProps[E],
 ): Promise<void> {
   const response = await fetch(`${host}/i/v0/e/`, {
     method: 'POST',
