@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 import { signUp } from "@/lib/client/auth"
+import { identifyUser } from "@/lib/client/posthog"
 import { authPathWithNext, PASSWORD_MIN_LENGTH } from "@/lib/schemas/auth"
 import { Button } from "@/components/ui/button"
 import { CardContent } from "@/components/ui/card"
@@ -24,7 +25,7 @@ export function SignupForm({ next }: { next: string }) {
     setPending(true)
     setError(null)
 
-    const { error } = await signUp.email({
+    const { data, error } = await signUp.email({
       name: String(formData.get("name")),
       email: String(formData.get("email")),
       password: String(formData.get("password")),
@@ -35,6 +36,12 @@ export function SignupForm({ next }: { next: string }) {
       setError(error.message ?? "Could not create your account. Please try again.")
       setPending(false)
       return
+    }
+
+    // Same reason as the login form: a visitor who browsed as a guest and then
+    // created an account to buy is one person, and this is what says so.
+    if (data?.user.id) {
+      identifyUser(data.user.id)
     }
 
     router.push(next)

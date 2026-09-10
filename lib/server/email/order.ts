@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { groupBySeller } from '@/lib/group-by-seller'
 import type { Purchase } from '@/lib/server/db/schemas/purchase'
 import { getUserEmails } from '@/lib/server/dal/users'
 import { sendReceiptEmail } from './receipt'
@@ -33,12 +34,7 @@ export async function sendOrderEmails(purchases: Purchase[]): Promise<void> {
   const [first] = purchases
   if (!first) return
 
-  const bySeller = new Map<string, Purchase[]>()
-  for (const purchase of purchases) {
-    const existing = bySeller.get(purchase.sellerId)
-    if (existing) existing.push(purchase)
-    else bySeller.set(purchase.sellerId, [purchase])
-  }
+  const bySeller = groupBySeller(purchases)
 
   // .catch() attached in the same tick the promise is created, not left until
   // Promise.allSettled below: the seller-address lookup is awaited before that

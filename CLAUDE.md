@@ -137,6 +137,100 @@ Templates are viewed at `/dev/emails/<template>`, which 404s in production.
 `?send=<address>` on the same url sends that template's fixture through
 `sendEmail`.
 
+# Analytics
+
+Six events describe the funnel from a storefront view to a paid order. They are
+defined once in `lib/analytics/events.ts`, which is environment-agnostic because
+both halves import it — a renamed property breaks the build rather than quietly
+emptying a dashboard card weeks later.
+
+Five capture in the browser, all through the same `capture()` in
+`lib/client/posthog.ts`, from two places: three fire from `TrackView` on mount
+(`storefront_viewed`, `product_viewed`, `cart_viewed`), and two fire from a
+button handler (`product_added_to_cart` inside `AddToCartButton`'s transition,
+`checkout_started` inside the cart's submit). One more captures on the server
+(`purchase_completed`).
+
+The server one is the exception because a purchase is not a browser event: it is
+confirmed in two racing places, and a buyer whose browser died after paying still
+bought the thing. `capturePurchaseCompleted` is scheduled from `fulfillAndNotify`
+under the same `promoted.length > 0` that gates the order email, which is what
+makes it exactly-once — an empty array means the other entry point already
+captured.
+
+Every event carries `seller_id`, without which a seller's dashboard cannot scope
+its query. A cart can span sellers, so `cart_viewed`, `checkout_started` and
+`purchase_completed` fan out to one event per seller, each carrying that seller's
+own share.
+
+`identify()` runs at the login and signup call sites, not in a layout — resolving
+the session in the root layout would make every route dynamic, including the
+public home page. Without it, PostHog never learns a session exists, so
+signed-out and signed-in browsing in the same browser is already one anonymous
+person — that is not what identify buys.
+
+What it actually merges is two otherwise-disjoint populations: the browsing
+person, an anonymous `distinct_id` the browser generated on its own, and the
+purchase person, `distinct_id = buyerId` (see `lib/server/analytics/capture.ts`)
+— a value the browser never sent and has no way to derive. Without `identify()`
+those are two unrelated people rather than the numerator being a subset of the
+denominator, so a buyer's purchase does not connect back to their own browsing
+at all. For a single device that barely moves the rate, since the same browser
+still fired an entry event under its anonymous id and still counts as a viewer
+— the real damage shows up across devices, where the entry event lives on one
+anonymous person and the purchase on another, and neither half of that buyer's
+journey ever meets the other.
+
+A seller's own views of their own storefront and products are not captured —
+but only while the seller is signed in, since the exclusion checks
+`viewer?.id === user.id`. A signed-out or incognito seller viewing their own
+storefront enters their own denominator like any other visitor.
+
+The read side is one HogQL query in `lib/server/analytics/conversion.ts`, cached
+by `lib/server/request/analytics.ts` — a separate module only because
+`unstable_cache` imports `next/cache`, which nothing outside
+`lib/server/request/` may do. It computes its own window inside the cache scope;
+passing dates derived from `Date.now()` would make the key unique per request and
+the cache would never hit.
+
+Four variables. Three are per-half; one is shared, which is easy to get wrong:
+
+- `NEXT_PUBLIC_POSTHOG_HOST` — **both halves**. Public. Must match the project's
+  region, and with it unset neither half works no matter what else is set.
+- `NEXT_PUBLIC_POSTHOG_KEY` — the write half. Public by design.
+- `POSTHOG_PRIVATE_KEY` and `POSTHOG_PROJECT_ID` — the read half. Secret.
+  The `NEXT_PUBLIC_` prefix on either would inline it into the browser bundle and
+  hand every visitor read access to the project.
+
+`NEXT_PUBLIC_` variables are inlined into the bundle at build time, so they
+cannot be supplied only at runtime.
+
+Given the shared host, the two halves are otherwise independent: the public key
+alone captures events without filling the card, and the private key and project
+id alone fill nothing, because there is nothing to read.
+
+All four absent is a supported state, exactly as it is for email: the SDK never
+initialises, every capture returns early, and the Conversion card renders the em
+dash it rendered before it had a data source. A fresh clone runs with no PostHog
+project at all.
+
+Conversion divides unique buyers by unique people who entered the seller's
+funnel — any of `storefront_viewed`, `product_viewed` or
+`product_added_to_cart`, not storefront views alone, since `/explore` and
+shared product links reach a product page directly and skip the storefront
+entirely. Counting that denominator by `person_id` for visitors who never sign
+in relies on `person_profiles: 'always'` in `lib/client/posthog.ts`, a
+deliberate override of PostHog's `identified_only` default — and, since
+PostHog bills events with person processing higher than anonymous ones, a
+standing cost the widened denominator carries on purpose.
+
+The asymmetry worth knowing when reading the number: the denominator is
+measured in the browser and the numerator is measured on the server. The
+numerator (`purchase_completed`) cannot be blocked; the denominator can be. A
+visitor running an ad blocker who buys lands in the numerator and never the
+denominator, so the rate reads high rather than low. It is clamped to 100% as
+a safety net for that case.
+
 # Uploads
 
 Both kinds of upload are staged before they belong to anything, so a product

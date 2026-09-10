@@ -429,7 +429,8 @@ export async function getStorefrontProduct(
 }
 
 // Only the fields the explore grid renders, plus the seller identity its links
-// need. `owner_id` and `updated_at` have no business on a cross-seller list.
+// need. `updated_at` has no business on a cross-seller list; `sellerId` does,
+// below, for funnel attribution.
 export type ExploreProduct = {
   id: number
   slug: string
@@ -438,6 +439,9 @@ export type ExploreProduct = {
   priceInCents: number
   images: string[]
   createdAt: Date
+  // The owner id alongside the public identity, so a cross-seller grid can
+  // attribute an add-to-cart to the right storefront's funnel.
+  sellerId: string
   sellerHandle: string
   sellerName: string
 }
@@ -493,6 +497,7 @@ export async function searchPublishedProducts({
       priceInCents: productsTable.priceInCents,
       images: productsTable.images,
       createdAt: productsTable.createdAt,
+      sellerId: user.id,
       sellerHandle: user.handle,
       sellerName: user.name,
     })

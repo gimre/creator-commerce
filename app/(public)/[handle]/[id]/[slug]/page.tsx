@@ -15,6 +15,7 @@ import { getStorefrontProduct } from "@/lib/server/dal/products"
 import { getUserByHandle } from "@/lib/server/dal/users"
 import { getUser } from "@/lib/server/request/session"
 import { AddToCartButton } from "@/components/add-to-cart-button"
+import { TrackView } from "@/components/analytics/track-view"
 import { DraftBadge } from "@/components/product-card"
 import { ProductGallery } from "@/components/product-gallery"
 import { Button } from "@/components/ui/button"
@@ -76,8 +77,26 @@ export default async function ProductPage({
   const price = formatPrice(product.priceInCents)
   const inCart = (await readCartMembership())(product.id)
 
+  // getUser() is cache()-wrapped and findProduct already called it in this same
+  // render pass, so this costs no second session lookup.
+  const viewer = await getUser()
+  const isOwner = viewer?.id === user.id
+
   return (
     <div className="mx-auto max-w-[1080px] px-6 pt-6 pb-16">
+      {/* Same owner exclusion as the storefront grid. */}
+      {!isOwner && (
+        <TrackView
+          event="product_viewed"
+          props={{
+            seller_id: user.id,
+            seller_handle: user.handle,
+            product_id: product.id,
+            product_name: product.name,
+            price_in_cents: product.priceInCents,
+          }}
+        />
+      )}
       <Link
         href={`/@${user.handle}`}
         className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground"
@@ -120,10 +139,13 @@ export default async function ProductPage({
                 <AddToCartButton
                   productId={product.id}
                   productName={product.name}
+                  sellerId={user.id}
+                  priceInCents={product.priceInCents}
                   inCart={inCart}
                   size="lg"
                   className="flex-1"
                   label={inCart ? "In cart" : `Add to cart — ${price}`}
+                  isOwner={isOwner}
                 />
                 <Button size="lg" variant="outline">
                   <Heart />

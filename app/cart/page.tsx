@@ -1,18 +1,21 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 
-import { checkoutAction, pruneCartAction } from "@/lib/actions/cart"
+import { pruneCartAction } from "@/lib/actions/cart"
 import { authPathWithNext } from "@/lib/schemas/auth"
 import { readCartIds } from "@/lib/server/request/cart"
 import { getUser } from "@/lib/server/request/session"
 import { getCartProducts, type CartProduct } from "@/lib/server/dal/products"
 import { getPurchasedProductIds } from "@/lib/server/dal/purchases"
+import { TrackView } from "@/components/analytics/track-view"
 import { ProductCover } from "@/components/product-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { formatPrice } from "@/lib/currency"
+import { groupCartBySeller, type SellerCartGroup } from "@/lib/analytics/cart"
 import { RemoveFromCartButton } from "./remove-from-cart-button"
+import { CheckoutButton } from "./checkout-button"
 
 export const metadata: Metadata = {
   title: "Cart",
@@ -39,8 +42,24 @@ export default async function CartPage() {
     owned.has(product.id) || product.sellerId === user?.id
   const purchasable = products.filter((product) => !unbuyable(product))
 
+  // purchasable rather than products: a seller's own product sitting in their
+  // cart, or one the buyer already owns, is excluded from the total charged and
+  // must not count as cart progress either.
+  const sellerGroups = groupCartBySeller(purchasable)
+
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-4 p-6">
+      {sellerGroups.map((group) => (
+        <TrackView
+          key={group.sellerId}
+          event="cart_viewed"
+          props={{
+            seller_id: group.sellerId,
+            item_count: group.itemCount,
+            subtotal_in_cents: group.subtotalInCents,
+          }}
+        />
+      ))}
       <div>
         <h1 className="font-heading text-2xl font-medium tracking-[-0.02em]">
           Cart
@@ -100,6 +119,7 @@ export default async function CartPage() {
             products={purchasable}
             signedIn={user != null}
             excluded={products.length - purchasable.length}
+            sellerGroups={sellerGroups}
           />
         </>
       )}
@@ -155,11 +175,13 @@ function CartSummary({
   products,
   signedIn,
   excluded,
+  sellerGroups,
 }: {
   // Already filtered to what will actually be charged.
   products: CartProduct[]
   signedIn: boolean
   excluded: number
+  sellerGroups: SellerCartGroup[]
 }) {
   // Everything in the cart is owned or self-published, so there is no order to
   // place — say where the files are instead of offering a checkout that would
@@ -206,14 +228,7 @@ function CartSummary({
         )}
       </div>
       {signedIn ? (
-        /* A plain form rather than a client component: the action takes no
-           arguments and redirects, so there is no pending state to plumb and it
-           works without JS. */
-        <form action={checkoutAction}>
-          <Button type="submit" size="lg" className="w-full">
-            Checkout — {formatPrice(total)}
-          </Button>
-        </form>
+        <CheckoutButton total={total} sellerGroups={sellerGroups} />
       ) : (
         /* The gate, shown rather than sprung: pressing Checkout signed out would
            redirect to the same place, but a button that silently means "sign in

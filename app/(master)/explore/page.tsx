@@ -106,7 +106,10 @@ async function ExploreResults({
             key={product.id}
             product={product}
             handle={product.sellerHandle}
+            sellerId={product.sellerId}
             inCart={inCart(product.id)}
+            // No isOwner: searchPublishedProducts already excludes the
+            // viewer's own products, so nothing here can ever be theirs.
             // Nothing above the grid but the header, so the first cover is the
             // LCP candidate.
             preload={index === 0}

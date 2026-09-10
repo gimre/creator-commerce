@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 import { signIn } from "@/lib/client/auth"
+import { identifyUser } from "@/lib/client/posthog"
 import { authPathWithNext } from "@/lib/schemas/auth"
 import { Button } from "@/components/ui/button"
 import { CardContent } from "@/components/ui/card"
@@ -27,7 +28,7 @@ export function LoginForm({ next }: { next: string }) {
     setPending(true)
     setError(null)
 
-    const { error } = await signIn.email({
+    const { data, error } = await signIn.email({
       email: String(formData.get("email")),
       password: String(formData.get("password")),
     })
@@ -36,6 +37,14 @@ export function LoginForm({ next }: { next: string }) {
       setError(error.message ?? "Could not sign you in. Please try again.")
       setPending(false)
       return
+    }
+
+    // Before the navigation, not after: this is what merges the anonymous
+    // person who has been browsing storefronts into the user who is about to
+    // buy. Without it the funnel's first five steps and its last one belong to
+    // two different people and every conversion rate reads as zero.
+    if (data?.user.id) {
+      identifyUser(data.user.id)
     }
 
     router.push(next)
