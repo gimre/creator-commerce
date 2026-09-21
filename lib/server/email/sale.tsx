@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { SaleEmail, saleSubject, type SaleItem } from '@/components/email/sale'
+import { appUrl } from '@/lib/server/app-url'
 import { sendEmail } from './send'
 
 /**
@@ -21,7 +22,7 @@ export async function sendSaleEmail(params: {
     to,
     subject: saleSubject(items.length),
     react: (
-      <SaleEmail orderId={orderId} appUrl={process.env.APP_URL!} items={items} />
+      <SaleEmail orderId={orderId} appUrl={appUrl} items={items} />
     ),
   })
 }

@@ -7,6 +7,7 @@ import {
 import { ReceiptEmail, receiptSubject } from '@/components/email/receipt'
 import { SaleEmail, saleSubject } from '@/components/email/sale'
 import { VerifyEmail, verifyEmailSubject } from '@/components/email/verify-email'
+import { appUrl } from '@/lib/server/app-url'
 
 /**
  * Every template the dev preview can render, and the data it renders with.
@@ -24,15 +25,13 @@ export type EmailFixture = {
   element: ReactElement
 }
 
-const APP_URL = process.env.APP_URL ?? 'http://localhost:3000'
-
 export const TEMPLATES: Record<string, EmailFixture> = {
   receipt: {
     subject: receiptSubject(),
     element: (
       <ReceiptEmail
         orderId="3f1c0b8e-9d2a-4f77-9a1e-5c6f2b7d8e90"
-        appUrl={APP_URL}
+        appUrl={appUrl}
         items={[
           {
             productId: 1,
@@ -55,7 +54,7 @@ export const TEMPLATES: Record<string, EmailFixture> = {
     element: (
       <SaleEmail
         orderId="3f1c0b8e-9d2a-4f77-9a1e-5c6f2b7d8e90"
-        appUrl={APP_URL}
+        appUrl={appUrl}
         items={[
           {
             productId: 1,
@@ -71,7 +70,7 @@ export const TEMPLATES: Record<string, EmailFixture> = {
     element: (
       <SaleEmail
         orderId="7c2e1a4b-8f30-4d19-b6a2-0e5d3c9f1a72"
-        appUrl={APP_URL}
+        appUrl={appUrl}
         items={[
           {
             productId: 1,
@@ -94,7 +93,7 @@ export const TEMPLATES: Record<string, EmailFixture> = {
     element: (
       <PasswordResetEmail
         name="Gabi"
-        url={`${APP_URL}/api/auth/reset-password/dGhpcy1pcy1hLWZha2UtdG9rZW4?callbackURL=%2Freset-password`}
+        url={`${appUrl}/api/auth/reset-password/dGhpcy1pcy1hLWZha2UtdG9rZW4?callbackURL=%2Freset-password`}
       />
     ),
   },
@@ -103,7 +102,7 @@ export const TEMPLATES: Record<string, EmailFixture> = {
     element: (
       <VerifyEmail
         name="Gabi"
-        url={`${APP_URL}/api/auth/verify-email?token=dGhpcy1pcy1hLWZha2UtdG9rZW4&callbackURL=%2Fverify-email`}
+        url={`${appUrl}/api/auth/verify-email?token=dGhpcy1pcy1hLWZha2UtdG9rZW4&callbackURL=%2Fverify-email`}
       />
     ),
   },

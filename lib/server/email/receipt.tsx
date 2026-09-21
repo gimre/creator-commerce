@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { ReceiptEmail, receiptSubject } from '@/components/email/receipt'
+import { appUrl } from '@/lib/server/app-url'
 import { getUserEmail } from '@/lib/server/dal/users'
 import type { Purchase } from '@/lib/server/db/schemas/purchase'
 import { sendEmail } from './send'
@@ -34,7 +35,7 @@ export async function sendReceiptEmail(purchases: Purchase[]): Promise<void> {
     react: (
       <ReceiptEmail
         orderId={first.orderId}
-        appUrl={process.env.APP_URL!}
+        appUrl={appUrl}
         items={purchases.map((purchase) => ({
           productId: purchase.productId,
           productName: purchase.productName,
