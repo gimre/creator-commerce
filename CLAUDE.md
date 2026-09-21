@@ -252,3 +252,51 @@ upload `private`. One table would let an image's key be claimed as a product's
 Images commit on Save, on both the create and edit pages: the form owns the list
 and `setProductImages` writes it whole, having checked every url against the
 product's current images or a staging row of the same owner.
+
+# Deploy
+
+The app runs on Vercel. Nothing in the repo names a host: `lib/server/app-url.ts`
+resolves `appUrl` at module load — `APP_URL` if set, else the production
+domain (`VERCEL_PROJECT_PRODUCTION_URL`) on a production deployment, else the
+preview branch alias (`VERCEL_BRANCH_URL`, falling back to `VERCEL_URL`), else
+`http://localhost:3000`. Stripe's return urls, the links inside emails, and
+Better Auth's `baseURL` all come from it. `appOrigins` — every host a
+deployment answers on — is Better Auth's `trustedOrigins`, which is what lets
+a login succeed on a preview's unique deployment host as well as its branch
+alias.
+
+`APP_URL` is therefore an override, set in `.env` for local dev and never in
+the Vercel dashboard: there it would pin every preview to one host. Attaching
+a custom domain needs no code change; `VERCEL_PROJECT_PRODUCTION_URL` becomes
+that domain.
+
+Dashboard configuration a fresh Vercel project needs, none of which the code
+can check for:
+
+- **Environment variables**, per environment, from `.env.example`. Production:
+  its own Neon `PG_CONNECTION_STRING`, a freshly generated `BETTER_AUTH_SECRET`,
+  `STRIPE_SECRET_KEY`, the `STRIPE_WEBHOOK_SECRET` of the endpoint below,
+  `UPLOADTHING_TOKEN`, `SMTP_USER`/`SMTP_PASS`, and the four PostHog variables.
+  Preview: the same names with the dev Neon string, and no
+  `STRIPE_WEBHOOK_SECRET` — no endpoint points at a preview, and
+  `/checkout/return` calls `fulfillAndNotify` on its own.
+- **"Automatically expose System Environment Variables"** stays on (the
+  default). The resolver reads `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_BRANCH_URL`
+  and `VERCEL_PROJECT_PRODUCTION_URL` from it.
+- **Deployment Protection off for previews.** UploadThing's `onUploadComplete`
+  is a POST from UploadThing's servers to `/api/uploadthing`; behind Vercel
+  Authentication it gets a 401 HTML page, the `product_image_uploads` row is
+  never written, and Save rejects the url as unknown.
+- **Stripe**: one webhook endpoint at
+  `https://<production host>/api/stripe/webhook`, subscribed to
+  `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+  `checkout.session.expired` and `checkout.session.async_payment_failed` — the
+  four cases `lib/server/request/stripe-webhook.ts` switches on. Its signing
+  secret is not the one `stripe listen` prints.
+- **`NEXT_PUBLIC_*` is inlined at build time**: set those before the first
+  deploy, and redeploy after changing one.
+
+Migrations run from a laptop, never from the build:
+`PG_CONNECTION_STRING=<production string> npm run schema:migrations:run`.
+`vercel env pull` writes `.env.local`, which `next dev` loads ahead of `.env`
+— pull only when that override is wanted.

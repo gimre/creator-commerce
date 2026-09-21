@@ -3,6 +3,7 @@ import 'server-only'
 import type Stripe from 'stripe'
 
 import { APP_CURRENCY } from '@/lib/currency'
+import { appUrl } from '@/lib/server/app-url'
 import {
   deletePendingCheckoutSession,
   markCheckoutSessionPaid,
@@ -75,10 +76,10 @@ export async function createCheckoutSession(params: {
       expires_at: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
       // The literal {CHECKOUT_SESSION_ID} is Stripe's placeholder and must not be
       // interpolated — Stripe substitutes it when it builds the redirect.
-      success_url: `${process.env.APP_URL!}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${appUrl}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
       // Straight back to the cart, which is still intact: nothing is cleared
       // until a payment is confirmed.
-      cancel_url: `${process.env.APP_URL!}/cart`,
+      cancel_url: `${appUrl}/cart`,
     },
     { idempotencyKey: orderId },
   )

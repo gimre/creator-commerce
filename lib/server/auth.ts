@@ -4,6 +4,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { nextCookies } from 'better-auth/next-js';
 
+import { appOrigins, appUrl } from '@/lib/server/app-url';
 import db from '@/lib/server/db';
 import * as authSchema from '@/lib/server/db/schemas/auth';
 import {
@@ -17,6 +18,13 @@ export const auth = betterAuth({
     provider: 'pg',
     schema: authSchema,
   }),
+  // Explicit rather than left to the BETTER_AUTH_URL env fallback, which
+  // cannot name a preview deployment's host. trustedOrigins is what makes a
+  // preview usable: a request on the unique deployment host while baseURL is
+  // the branch alias would otherwise fail the origin check with
+  // "Invalid origin".
+  baseURL: appUrl,
+  trustedOrigins: appOrigins,
   advanced: {
     // Better Auth awaits its email hooks inline unless a handler is set, so
     // without this every signup and reset request blocks on the SMTP handshake.
