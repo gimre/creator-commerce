@@ -43,3 +43,6 @@ next-env.d.ts
 
 # superpowers scratch (SDD progress ledger)
 /.superpowers/
+
+# Sentry Config File
+.env.sentry-build-plugin
