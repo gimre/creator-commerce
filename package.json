@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "schema:better-auth": "npx @better-auth/cli generate --output lib/server/db/schemas/auth.ts",
+    "schema:better-auth": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/generate-auth-schema.mts",
     "schema:migrations:generate": "npx drizzle-kit generate",
     "schema:migrations:run": "npx drizzle-kit migrate",
     "schema:email-theme": "tsx scripts/generate-email-theme.ts",
