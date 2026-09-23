@@ -6,5 +6,5 @@ export default defineConfig({
   dialect: 'postgresql',
   dbCredentials: {
     url: process.env.PG_CONNECTION_STRING as string,
-  }
+  },
 });

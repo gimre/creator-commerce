@@ -19,6 +19,8 @@
     "@neondatabase/serverless": "^1.1.0",
     "@react-email/components": "^1.0.12",
     "@uploadthing/react": "^7.3.3",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "better-auth": "^1.6.23",
     "class-variance-authority": "^0.7.1",
     "client-only": "^0.0.1",

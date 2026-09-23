@@ -293,6 +293,13 @@ can check for:
   `checkout.session.expired` and `checkout.session.async_payment_failed` — the
   four cases `lib/server/request/stripe-webhook.ts` switches on. Its signing
   secret is not the one `stripe listen` prints.
+- **Web Analytics and Speed Insights enabled** in the project's dashboard tabs.
+  `<Analytics />` and `<SpeedInsights />` in `app/layout.tsx` post to
+  `/_vercel/insights/*` and `/_vercel/speed-insights/*`, which exist only once
+  those are switched on — until then those requests 404 and nothing is
+  recorded. In development both run in debug mode and send nothing. They
+  measure page-level traffic and Core Web Vitals, separate from the PostHog
+  funnel above.
 - **`NEXT_PUBLIC_*` is inlined at build time**: set those before the first
   deploy, and redeploy after changing one.
 
