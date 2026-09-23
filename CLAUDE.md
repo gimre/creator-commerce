@@ -49,7 +49,8 @@ grep -rn "server/request" lib/server --include='*.ts' --include='*.tsx' | grep -
 
 `request/` itself holds `session.ts` (the session helpers), `cart.ts` (the cart
 cookie), `revalidate.ts`, `background.ts` (the app's only `after()` call),
-`checkout.ts` (`fulfillAndNotify`) and `stripe-webhook.ts`.
+`checkout.ts` (`fulfillAndNotify`), `stripe-webhook.ts` and
+`cleanup-images-cron.ts`.
 
 **Server actions** (`lib/actions/*`) resolve the current user, parse input, call
 a DAL function, then handle Next.js concerns (`revalidatePath`, `redirect`). They
@@ -241,9 +242,13 @@ being created can carry them.
 the record of what was uploaded.
 
 `product_image_uploads` holds images. Rows are deleted when claimed, so a
-surviving row means a pending upload and nothing else. `scripts/` sweeps the ones
-no form ever saved: `npm run cleanup:images` reports by default and needs `-- --delete`
-to act; only rows older than 24 hours are candidates, overridable with `-- --older-than=7d`.
+surviving row means a pending upload and nothing else. The ones no form ever
+saved are swept daily on production by a Vercel cron job (`vercel.json` →
+`/api/cron/cleanup-images`, 04:00 UTC), which deletes rows older than 24 hours
+and their files. `npm run cleanup:images` runs the same sweep by hand: it reports
+by default and needs `-- --delete` to act, and `-- --older-than=7d` overrides the
+24 hours. Both go through `lib/server/image-cleanup.ts`, which imports nothing
+from `request/` so the script can load it.
 
 They are separate tables because images upload `public-read` and product files
 upload `private`. One table would let an image's key be claimed as a product's
@@ -276,10 +281,12 @@ can check for:
 - **Environment variables**, per environment, from `.env.example`. Production:
   its own Neon `PG_CONNECTION_STRING`, a freshly generated `BETTER_AUTH_SECRET`,
   `STRIPE_SECRET_KEY`, the `STRIPE_WEBHOOK_SECRET` of the endpoint below,
-  `UPLOADTHING_TOKEN`, `SMTP_USER`/`SMTP_PASS`, and the four PostHog variables.
+  `UPLOADTHING_TOKEN`, `SMTP_USER`/`SMTP_PASS`, `CRON_SECRET`, and the four
+  PostHog variables.
   Preview: the same names with the dev Neon string, and no
   `STRIPE_WEBHOOK_SECRET` — no endpoint points at a preview, and
-  `/checkout/return` calls `fulfillAndNotify` on its own.
+  `/checkout/return` calls `fulfillAndNotify` on its own. No `CRON_SECRET`
+  either: Vercel runs cron jobs only on production deployments.
 - **"Automatically expose System Environment Variables"** stays on (the
   default). The resolver reads `VERCEL_ENV`, `VERCEL_URL`, `VERCEL_BRANCH_URL`
   and `VERCEL_PROJECT_PRODUCTION_URL` from it.

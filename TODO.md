@@ -1,5 +1,45 @@
 # TODO
 
+## Deploy
+
+- **Stripe is not configured for live purchases in production.** Production
+  needs Stripe's **live-mode** credentials, not the test-mode ones used in dev:
+  - A live-mode webhook endpoint at
+    `https://<production host>/api/stripe/webhook`, subscribed to
+    `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+    `checkout.session.expired` and `checkout.session.async_payment_failed` — the
+    four cases `lib/server/request/stripe-webhook.ts` switches on.
+  - The live `STRIPE_SECRET_KEY` and that endpoint's signing secret as
+    `STRIPE_WEBHOOK_SECRET`, both on the Production environment only, then a
+    redeploy. Test and live endpoints have different signing secrets, and
+    neither is the one `stripe listen` prints.
+  - Verify with one real low-price purchase: the endpoint's delivery log in the
+    Stripe dashboard shows a 200, the purchase row is `paid`, and the receipt
+    arrives. Refund it from the dashboard afterwards (nothing in the app can —
+    see Purchases below).
+
+  Until the webhook is in place, `/checkout/return` still fulfils a buyer who
+  lands back on the site, but a buyer whose browser dies after paying is never
+  fulfilled, and expired sessions leave their `pending` rows behind.
+
+- **PostHog receives no analytics from the Vercel deployments. (Human to
+  debug.)** The purchase funnel — `storefront_viewed` / `product_viewed` /
+  `product_added_to_cart` → `checkout_started` → `purchase_completed` — works
+  locally but nothing arrives from preview or production, so the dashboard's
+  Conversion card has no data there. Places to look, roughly in order:
+  - The four PostHog variables are set on the environment being tested
+    (`NEXT_PUBLIC_POSTHOG_HOST` is needed by both halves).
+  - `NEXT_PUBLIC_*` is inlined at **build** time: a variable added after the
+    last deploy is absent from the bundle until a redeploy. Check the built JS
+    for the key.
+  - `NEXT_PUBLIC_POSTHOG_HOST` matches the project's region (US vs EU).
+  - Browser devtools on the deployed site: are requests to the PostHog host
+    being made at all, and what do they return? An ad blocker drops them
+    silently.
+  - Server side: `purchase_completed` is sent from `after()` via
+    `scheduleAnalytics` — check the Vercel function logs for a failed capture,
+    and whether the function is frozen before the flush completes.
+
 ## Product images
 
 - **No optimistic thumbnails while an image uploads.** The tile appears only
@@ -78,23 +118,8 @@
 ## Image optimization
 
 Baseline is already in place: no raw `<img>` anywhere, `remotePatterns` set for
-UploadThing, every `Image` uses `fill` + `sizes` + `alt`. What is left:
-
-- **`priority` is deprecated in Next 16 — migrate to the explicit props.**
-  `ProductGallery` passes `priority={index === 0}`
-  (`components/product-gallery.tsx`) and `ProductCover` accepts a `priority`
-  prop (`components/product-card.tsx`). Next 16 deprecated `priority` in favour
-  of `preload`, and the docs recommend `loading="eager"` / `fetchPriority="high"`
-  over `preload` in most cases. The gallery's first slide is the product page's
-  LCP element, so `loading="eager"` + `fetchPriority="high"` is the right
-  replacement; `preload` only if we want the `<link>` in `<head>`.
-
-- **The storefront grid has no eager image at all, so its LCP lazy-loads.**
-  `ProductCover` takes a `priority` prop but `ProductCard` never forwards it and
-  the storefront page never sets it, so every card image is lazy — including the
-  one that decides LCP. Forward the prop and set it on the first card (or first
-  row). While there: the `sizes` prop on `ProductCover` is likewise never
-  overridden by any caller, so either wire it up or drop both.
+UploadThing, every `Image` uses `fill` + `sizes` + `alt`, and the first card of
+each grid and the gallery's first slide `preload`. What is left:
 
 - **`sizes` describes a responsive layout we do not have.**
   The storefront grid is `grid-cols-3` with no breakpoint and the product page is
@@ -103,21 +128,17 @@ UploadThing, every `Image` uses `fill` + `sizes` + `alt`. What is left:
   620px`, so on a phone the browser fetches a full-viewport variant for a ~117px
   card. The desktop numbers are off too — the real gallery width is ~545px, not
   620px. Either make the grids responsive so the `100vw` branch becomes true, or
-  correct the `sizes` values to the widths actually rendered.
+  correct the `sizes` values to the widths actually rendered. While there: the
+  `sizes` prop on `ProductCover` is never overridden by any caller, so either
+  wire it up or drop it.
 
 - **No blur placeholder on remote images.**
   `placeholder="blur"` needs a `blurDataURL`, which is not derived automatically
   for remote URLs. A single shared solid-colour data URL for product covers and
   gallery slides is enough to remove the flash of empty frame.
 
-- **Every image knob in `next.config.ts` is still at its default.**
-  In rough order of payoff:
-  - `minimumCacheTTL` defaults to 4 hours; UploadThing keys are immutable, so we
-    re-optimize the same bytes several times a day for nothing. `2678400` (31d).
-  - `formats` defaults to `['image/webp']` only — AVIF is not being served
-    despite what we claim. `['image/avif', 'image/webp']` costs ~50% more encode
-    time on the first request and double the cache storage for ~20% smaller
-    files.
+- **Remaining image knobs in `next.config.ts`.** `formats` (AVIF) and
+  `minimumCacheTTL` (31d) are set; these are still at their defaults:
   - `remotePatterns` omits `pathname` and `search`, which implies `**` for both.
     UploadThing serves `/f/<key>`, so `pathname: '/f/**'` and `search: ''` close
     the gap the docs warn about.
@@ -200,17 +221,6 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
   rules, puts ingest traffic on this app's own domain, and makes GeoIP depend
   on `X-Forwarded-For` surviving the rewrite.
 
-  The onboarding checklist that sat beside it is gone for its own reason, not
-  this one. "Connect Stripe" was one of five items and unknowable, since
-  Connect does not exist, and an unchecked box is a claim about the user that
-  we could not make. "Share your storefront link" was the other named example
-  at the time, but `storefront_viewed` now tracks exactly that, so it no
-  longer belongs on the unknowable list — the checklist just never came back
-  to account for it.
-
-- **No receipts.** The `/purchases` receipt column was removed rather than left
-  as a dead link. It comes back with Stripe, which is what would generate them.
-
 - **Refunds have no path.** `purchaseStatus` includes `'refunded'` and both the
   unique index and `getPurchasedProductIds` respect it, but nothing can set it
   yet. Stripe webhooks will.
@@ -245,7 +255,7 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
 
 - **Double-pay is possible, and only logged.** Two checkouts started in parallel
   for the same product create two sessions; paying both leaves one line that needs
-  a manual refund. `fulfillCheckoutSession` catches the unique violation and
+  a manual refund. `fulfillCheckoutSession` (`lib/server/checkout.ts`) catches the unique violation and
   `console.error`s the session id rather than failing the webhook. Fixing it
   properly means expiring a buyer's outstanding open sessions that overlap the new
   cart before creating another. Note the trap: do **not** fix it by deleting old

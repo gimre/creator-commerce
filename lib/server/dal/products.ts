@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 
 import {
   EXPLORE_RESULT_LIMIT,
@@ -320,6 +320,58 @@ export async function discardStagedImages(
     .returning({ key: productImageUploadsTable.key })
 
   return rows.map((row) => row.key)
+}
+
+export type OrphanedImageUpload = {
+  id: number
+  key: string
+  url: string
+  ownerId: string
+  createdAt: Date
+}
+
+/**
+ * Staged images older than `cutoff` that no product uses — what an abandoned
+ * form leaves behind (a closed tab, a browser Back, an ended session).
+ *
+ * A claimed upload has no row left, so age alone finds the candidates. The
+ * `not exists` is the backstop for a row whose url is live anyway — a commit
+ * that wrote the array but did not get as far as deleting its rows.
+ */
+export async function findOrphanedImageUploads(
+  cutoff: Date,
+): Promise<OrphanedImageUpload[]> {
+  return db
+    .select({
+      id: productImageUploadsTable.id,
+      key: productImageUploadsTable.key,
+      url: productImageUploadsTable.url,
+      ownerId: productImageUploadsTable.ownerId,
+      createdAt: productImageUploadsTable.createdAt,
+    })
+    .from(productImageUploadsTable)
+    .where(
+      and(
+        lt(productImageUploadsTable.createdAt, cutoff),
+        // Correlated on the outer row's url.
+        sql`not exists (
+          select 1 from ${productsTable}
+          where ${productsTable.images} @> array[${productImageUploadsTable.url}]::text[]
+        )`,
+      ),
+    )
+}
+
+/**
+ * Deletes staging rows by id. Only the sweep calls this, and only after the
+ * rows' files are gone from storage — see sweepOrphanedImages.
+ */
+export async function deleteImageUploadRows(ids: number[]): Promise<void> {
+  if (ids.length === 0) return
+
+  await db
+    .delete(productImageUploadsTable)
+    .where(inArray(productImageUploadsTable.id, ids))
 }
 
 // Only what the storefront grid's ProductCard renders (see ProductCardProduct

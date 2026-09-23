@@ -8,6 +8,7 @@
     "schema:migrations:run": "npx drizzle-kit migrate",
     "schema:email-theme": "tsx scripts/generate-email-theme.ts",
     "cleanup:images": "tsx --conditions=react-server --env-file=.env scripts/cleanup-orphaned-images.ts",
+    "deploy": "vercel",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
