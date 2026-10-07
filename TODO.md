@@ -154,6 +154,16 @@ each grid and the gallery's first slide `preload`. What is left:
 
 ## Search (`/explore`)
 
+- **`/explore` is invisible to search engines.** It calls `requireUser()`, so a
+  signed-out visitor — and every crawler — is redirected to `/login`. The
+  marketplace's own browse/search page is the biggest discovery surface it has,
+  and today only storefronts and product pages can be indexed. Making it public
+  means moving it out of `(master)` (the `DashboardShell` assumes a session),
+  handling a signed-out viewer for cart membership and analytics, and then
+  adding it to `app/sitemap.ts` and taking it out of `robots.ts`'s disallow
+  list. Left out of the SEO pass on purpose: it is a product change, not
+  metadata.
+
 The current implementation is deliberately the throwaway one — `ILIKE '%term%'`,
 ordered by `createdAt`, top 50, no pagination. Three known limits:
 
