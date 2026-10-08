@@ -105,3 +105,20 @@ test('a published product page carries Product JSON-LD', async ({ page, seed }) 
     expect(data.url).toBe(`${BASE_URL}${product.url}`)
     expect(data.offers.price).toBe('12.50')
 })
+
+test('the sitemap lists a published product and its storefront, not a draft', async ({ request, seed }) => {
+    // setup
+    const seller = await seed.user({ name: 'SEO Sitemap' })
+    const published = await seed.product(seller, { name: `SEO Sitemap ${seed.tag}` })
+    const draft = await seed.product(seller, { name: `SEO Sitemap Draft ${seed.tag}`, status: 'draft' })
+
+    // run
+    const response = await request.get('/sitemap.xml')
+    const xml = await response.text()
+
+    // assertions
+    expect(response.status()).toBe(200)
+    expect(xml).toContain(`<loc>${BASE_URL}${published.url}</loc>`)
+    expect(xml).toContain(`<loc>${BASE_URL}/@${seller.handle}</loc>`)
+    expect(xml).not.toContain(`${BASE_URL}${draft.url}`)
+})

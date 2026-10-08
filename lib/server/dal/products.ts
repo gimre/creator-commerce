@@ -573,6 +573,40 @@ export async function getStorefrontProduct(
   return product ?? null
 }
 
+export type SitemapProduct = {
+  id: number
+  slug: string
+  handle: string
+  images: string[]
+  updatedAt: Date
+}
+
+/**
+ * Every product a crawler may index: published, not deleted, with the handle
+ * its url is built from. Not scoped to an owner — the sitemap is the whole
+ * public catalogue, which is exactly what the storefront pages already show to
+ * anyone. Ordered by id so the file is stable between rebuilds.
+ */
+export async function listSitemapEntries(): Promise<SitemapProduct[]> {
+  return db
+    .select({
+      id: productsTable.id,
+      slug: productsTable.slug,
+      handle: user.handle,
+      images: productsTable.images,
+      updatedAt: productsTable.updatedAt,
+    })
+    .from(productsTable)
+    .innerJoin(user, eq(productsTable.ownerId, user.id))
+    .where(
+      and(
+        eq(productsTable.status, 'published'),
+        isNull(productsTable.deletedAt),
+      ),
+    )
+    .orderBy(asc(productsTable.id))
+}
+
 // Only the fields the explore grid renders, plus the seller identity its links
 // need. `updated_at` has no business on a cross-seller list; `sellerId` does,
 // below, for funnel attribution.
