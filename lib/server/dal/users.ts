@@ -7,12 +7,14 @@ import db from '@/lib/server/db'
 import { user } from '@/lib/server/db/schemas/auth'
 
 // What a storefront needs to render a seller. Deliberately narrow: email and
-// the rest of the auth row have no business on a public page.
+// the rest of the auth row have no business on a public page. `bio` is public
+// text the seller wrote for their storefront, so it belongs here.
 export type PublicUser = {
   id: string
   name: string
   handle: string
   image: string | null
+  bio: string | null
 }
 
 // Handles are stored without the leading "@" (see the signup form's
@@ -29,6 +31,7 @@ export const getUserByHandle = cache(
         name: user.name,
         handle: user.handle,
         image: user.image,
+        bio: user.bio,
       })
       .from(user)
       .where(eq(user.handle, handle))
