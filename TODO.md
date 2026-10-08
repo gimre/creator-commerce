@@ -149,8 +149,7 @@ each grid and the gallery's first slide `preload`. What is left:
 
 - **Minor.** The dashboard thumbnails in `components/product-images.tsx` use
   `alt=""`; they sit next to a labelled "Remove image" button so this is
-  defensible, but a real alt is safer. The public product page also has no
-  `openGraph.images`, even though the product cover is exactly the right asset.
+  defensible, but a real alt is safer.
 
 ## Search (`/explore`)
 
@@ -191,6 +190,17 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
 - **ILIKE is case-insensitive but not accent-insensitive** — "cafe" does not match
   "café". Needs the `unaccent` extension (same drizzle-kit caveat as above) or
   normalisation at write time.
+
+## SEO
+
+- **No app icons beyond `favicon.ico`.** The `icon` / `apple-icon` file
+  conventions want a real brand asset (at least a 512×512 PNG or an SVG mark);
+  once one exists, dropping `app/icon.png` and `app/apple-icon.png` in is all
+  Next needs.
+
+- **The sitemap is one file.** It holds 50,000 urls; past that,
+  `generateSitemaps` in `app/sitemap.ts` shards it by id range, and
+  `listSitemapEntries` takes a range.
 
 ## Tech debt
 

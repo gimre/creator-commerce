@@ -232,6 +232,43 @@ visitor running an ad blocker who buys lands in the numerator and never the
 denominator, so the rate reads high rather than low. It is clamped to 100% as
 a safety net for that case.
 
+# SEO
+
+Only the landing page, storefronts and product pages are meant to be indexed.
+`app/robots.ts` lets crawlers in on production only (`isProductionDeployment`
+in `lib/server/app-url.ts`) and points them at `app/sitemap.ts`, which lists
+storefronts with at least one published product and every published product
+(`listSitemapEntries`). Private pages are kept out with `robots: { index:
+false }` in their layouts — `(master)`, `(auth)`, `cart`, `checkout` — not a
+robots.txt `Disallow`: a disallowed url can still be indexed from inbound
+links, and a crawler only sees noindex on a page it may fetch. A new private
+route group needs the same metadata.
+
+Every public url is built by `lib/paths.ts` — `storefrontPath`, `productPath`
+— and each page has exactly one. The storefront and product pages compare
+`requestedPath(...)` against it and `permanentRedirect()` (308) on any
+difference: `/gabi` → `/@gabi`, a stale slug after a rename, a padded id. The
+redirect is a real 308 only because nothing above those pages suspends;
+adding a `loading.tsx` there turns it into a meta refresh. `productPath` maps
+an empty slug (a name with no ASCII letters) to `product`.
+
+`metadataBase` is `appUrl`, so relative canonicals and OG urls resolve against
+whichever host the deployment answers on. Next merges metadata shallowly: a
+page that sets `openGraph` replaces the root's whole object, so pages spread
+`SITE_OPEN_GRAPH` (`lib/site.ts`) into theirs.
+
+Share cards are `opengraph-image.tsx` files under `app/(public)/`, drawn by
+`next/og` from `lib/server/og/`: colours from `lib/email-theme.generated.ts`
+(Satori parses `oklch()` no better than an email client), fonts from
+`assets/fonts/`. The storefront and product cards read published rows only and
+never the session — they are separate requests outside the page's owner-only
+draft logic. `loadCover` draws only PNG and JPEG and falls back to a
+placeholder for anything else. Cards are plain elements only: Satori calls components directly rather than rendering them, so a client component or one using hooks — every `lucide-react` icon, for one — crashes the card; the product placeholder draws its icon as a raw `<svg>` for that reason.
+
+Product pages carry `Product` JSON-LD (`lib/seo/json-ld.ts`), always emitted
+through `serializeJsonLd`, which escapes `<`: names and descriptions are
+seller-written, and a `</script>` in one would otherwise close the tag.
+
 # Uploads
 
 Both kinds of upload are staged before they belong to anything, so a product
