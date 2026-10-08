@@ -263,7 +263,10 @@ Share cards are `opengraph-image.tsx` files under `app/(public)/`, drawn by
 `assets/fonts/`. The storefront and product cards read published rows only and
 never the session — they are separate requests outside the page's owner-only
 draft logic. `loadCover` draws only PNG and JPEG and falls back to a
-placeholder for anything else. Cards are plain elements only: Satori calls components directly rather than rendering them, so a client component or one using hooks — every `lucide-react` icon, for one — crashes the card; the product placeholder draws its icon as a raw `<svg>` for that reason.
+placeholder for anything else. Cards are plain elements only: Satori calls
+components directly rather than rendering them, so a client component or
+one using hooks — every `lucide-react` icon, for one — crashes the card;
+the product placeholder draws its icon as a raw `<svg>` for that reason.
 
 Product pages carry `Product` JSON-LD (`lib/seo/json-ld.ts`), always emitted
 through `serializeJsonLd`, which escapes `<`: names and descriptions are

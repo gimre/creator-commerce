@@ -117,9 +117,10 @@
 
 ## Image optimization
 
-Baseline is already in place: no raw `<img>` anywhere, `remotePatterns` set for
-UploadThing, every `Image` uses `fill` + `sizes` + `alt`, and the first card of
-each grid and the gallery's first slide `preload`. What is left:
+Baseline is already in place: no raw `<img>` outside the OG card routes
+(Satori cannot use `next/image`), `remotePatterns` set for UploadThing,
+every `Image` uses `fill` + `sizes` + `alt`, and the first card of each
+grid and the gallery's first slide `preload`. What is left:
 
 - **`sizes` describes a responsive layout we do not have.**
   The storefront grid is `grid-cols-3` with no breakpoint and the product page is
