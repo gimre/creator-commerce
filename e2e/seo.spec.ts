@@ -135,8 +135,9 @@ test('a published product has a PNG share card; a draft has none', async ({ page
     const card = await request.get(cardUrl ?? '')
     const draftCard = await request.get(`${draft.url}/opengraph-image/card`)
 
-    // assertions
-    expect(cardUrl).toContain(`${product.url}/opengraph-image`)
+    // assertions: Next percent-encodes params in the generated image url, so
+    // og:image carries /%40<handle>/..., not /@<handle>/...; decode before comparing
+    expect(decodeURIComponent(new URL(cardUrl ?? '').pathname)).toContain(`${product.url}/opengraph-image`)
     expect(card.status()).toBe(200)
     expect(card.headers()['content-type']).toBe('image/png')
     await expect(page.locator('meta[property="og:image:alt"]')).toHaveAttribute('content', product.name)
@@ -153,8 +154,8 @@ test('a storefront and the landing page have share cards', async ({ page, reques
     await page.goto('/')
     const landingCard = await page.locator('meta[property="og:image"]').getAttribute('content')
 
-    // assertions
-    expect(storefrontCard).toContain(`/@${seller.handle}/opengraph-image`)
+    // assertions: decode the percent-encoded @ before comparing (see note above)
+    expect(decodeURIComponent(new URL(storefrontCard ?? '').pathname)).toContain(`/@${seller.handle}/opengraph-image`)
     expect((await request.get(storefrontCard ?? '')).headers()['content-type']).toBe('image/png')
     expect((await request.get(landingCard ?? '')).headers()['content-type']).toBe('image/png')
 })

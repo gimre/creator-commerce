@@ -1,5 +1,4 @@
 import { ImageResponse } from "next/og"
-import { FileText } from "lucide-react"
 
 import { formatPrice } from "@/lib/currency"
 import { getStorefrontProduct } from "@/lib/server/dal/products"
@@ -45,7 +44,6 @@ export default async function Image({ params }: { params: Promise<Params> }) {
       <OgFrame>
         <div style={{ display: "flex", alignItems: "center", gap: 56, width: "100%" }}>
           {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Satori draws plain <img>; next/image does not exist here
             <img src={cover} alt="" width={420} height={420} style={{ borderRadius: 28, objectFit: "cover" }} />
           ) : (
             <div
@@ -59,7 +57,24 @@ export default async function Image({ params }: { params: Promise<Params> }) {
                 justifyContent: "center",
               }}
             >
-              <FileText size={140} color={ogColors["muted-foreground"]} strokeWidth={1.5} />
+              {/* The FileText icon's paths drawn as raw SVG, because Satori calls components
+                  directly and lucide's icons are client components that use React context. */}
+              <svg
+                width={140}
+                height={140}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={ogColors["muted-foreground"]}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+                <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+                <path d="M10 9H8" />
+                <path d="M16 13H8" />
+                <path d="M16 17H8" />
+              </svg>
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", flex: 1, gap: 22 }}>

@@ -36,7 +36,6 @@ export default async function Image({ params }: { params: Promise<Params> }) {
       <OgFrame>
         <div style={{ display: "flex", alignItems: "center", gap: 56, width: "100%" }}>
           {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element -- Satori draws plain <img>; next/image does not exist here
             <img src={avatar} alt="" width={240} height={240} style={{ borderRadius: 999, objectFit: "cover" }} />
           ) : (
             <div
