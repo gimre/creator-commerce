@@ -88,3 +88,20 @@ test('the product page declares its canonical url and a share title', async ({ p
     await expect(page.locator('meta[property="og:site_name"]')).toHaveAttribute('content', 'Creator Commerce')
     await expect(page).toHaveTitle(`${product.name} · Creator Commerce`)
 })
+
+test('a published product page carries Product JSON-LD', async ({ page, seed }) => {
+    // setup
+    const seller = await seed.user({ name: 'SEO JsonLd' })
+    const product = await seed.product(seller, { name: `SEO JsonLd ${seed.tag}`, priceInCents: 1250 })
+
+    // run
+    await page.goto(product.url)
+    const raw = await page.locator('script[type="application/ld+json"]').textContent()
+
+    // assertions
+    const data = JSON.parse(raw ?? '{}')
+    expect(data['@type']).toBe('Product')
+    expect(data.name).toBe(product.name)
+    expect(data.url).toBe(`${BASE_URL}${product.url}`)
+    expect(data.offers.price).toBe('12.50')
+})

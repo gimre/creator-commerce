@@ -14,6 +14,7 @@ import { readCartMembership } from "@/lib/server/request/cart"
 import { getStorefrontProduct } from "@/lib/server/dal/products"
 import { getUserByHandle } from "@/lib/server/dal/users"
 import { getUser } from "@/lib/server/request/session"
+import { appUrl } from "@/lib/server/app-url"
 import { AddToCartButton } from "@/components/add-to-cart-button"
 import { TrackView } from "@/components/analytics/track-view"
 import { DraftBadge } from "@/components/product-card"
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { formatPrice } from "@/lib/currency"
 import { productPath, requestedPath, storefrontPath } from "@/lib/paths"
+import { productJsonLd, serializeJsonLd } from "@/lib/seo/json-ld"
 import { SITE_OPEN_GRAPH } from "@/lib/site"
 import { parseHandleSegment, toMetaDescription } from "@/lib/utils"
 
@@ -104,6 +106,27 @@ export default async function ProductPage({
 
   return (
     <div className="mx-auto max-w-[1080px] px-6 pt-6 pb-16">
+      {/* Published only: a draft is noindex and only its owner sees it. */}
+      {!isDraft && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: serializeJsonLd(
+              productJsonLd({
+                name: product.name,
+                description: product.description,
+                priceInCents: product.priceInCents,
+                url: `${appUrl}${canonical}`,
+                imageUrls: product.images,
+                seller: {
+                  name: user.name,
+                  url: `${appUrl}${storefrontPath(user.handle)}`,
+                },
+              }),
+            ),
+          }}
+        />
+      )}
       {/* Same owner exclusion as the storefront grid. */}
       {!isOwner && (
         <TrackView
