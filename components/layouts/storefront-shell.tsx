@@ -4,6 +4,7 @@ import { Heart } from "lucide-react"
 import type { PublicUser } from "@/lib/server/dal/users"
 import { CartBadge } from "@/components/cart-badge"
 import { Button } from "@/components/ui/button"
+import { storefrontPath } from "@/lib/paths"
 import { getInitials } from "@/lib/utils"
 
 export function StorefrontShell({
@@ -17,7 +18,7 @@ export function StorefrontShell({
     <>
       <header className="sticky top-0 z-10 border-b bg-background">
         <div className="mx-auto flex max-w-[1080px] items-center gap-3.5 px-6 py-3.5">
-          <Link href={`/@${seller.handle}`} className="flex items-center gap-3">
+          <Link href={storefrontPath(seller.handle)} className="flex items-center gap-3">
             {/* Initials only for now: nothing populates user.image yet, and an
                 arbitrary avatar host isn't in next.config's remotePatterns. */}
             <span className="flex size-10 items-center justify-center rounded-full bg-chart-1 font-heading text-base font-bold">

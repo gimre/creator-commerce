@@ -48,3 +48,15 @@ export function getInitials(name: string) {
       .join("")
   )
 }
+
+// A meta description from free text: runs of whitespace collapsed (product
+// descriptions are multi-paragraph), and anything over `max` cut at the last
+// word boundary with an ellipsis. 160 is roughly what a results page shows.
+export function toMetaDescription(text: string, max = 160) {
+  const flat = text.replace(/\s+/g, " ").trim()
+  if (flat.length <= max) return flat
+  // One character short of max, so the ellipsis still fits.
+  const cut = flat.slice(0, max - 1)
+  const space = cut.lastIndexOf(" ")
+  return `${(space > 0 ? cut.slice(0, space) : cut).trimEnd()}…`
+}

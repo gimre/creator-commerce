@@ -5,6 +5,7 @@ import { Image } from "@/components/image"
 import { ProductImagePlaceholder } from "@/components/product-image-placeholder"
 import { Badge } from "@/components/ui/badge"
 import { formatPrice } from "@/lib/currency"
+import { productPath } from "@/lib/paths"
 import { cn } from "@/lib/utils"
 
 export function ProductCover({
@@ -149,7 +150,7 @@ export function ProductCard({
         </div>
       </div>
       <Link
-        href={`/@${handle}/${product.id}/${product.slug}`}
+        href={productPath(handle, product.id, product.slug)}
         aria-label={product.name}
         className="absolute inset-0 rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
       />

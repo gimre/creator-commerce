@@ -21,6 +21,7 @@ import { ProductGallery } from "@/components/product-gallery"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { formatPrice } from "@/lib/currency"
+import { storefrontPath } from "@/lib/paths"
 import { parseHandleSegment } from "@/lib/utils"
 
 // Resolves the seller from the handle, then the product from that seller, so a
@@ -98,7 +99,7 @@ export default async function ProductPage({
         />
       )}
       <Link
-        href={`/@${user.handle}`}
+        href={storefrontPath(user.handle)}
         className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground"
       >
         <ChevronLeft className="size-[15px]" /> All products
