@@ -1,4 +1,3 @@
-import type { Metadata } from "next"
 import Link from "next/link"
 import {
   ArrowRight,
@@ -19,12 +18,6 @@ import { MarketingShell } from "@/components/layouts/marketing-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-
-export const metadata: Metadata = {
-  title: "Creator Commerce — Sell your digital products",
-  description:
-    "Creator Commerce gives every creator a storefront, Stripe checkout, and protected downloads.",
-}
 
 const FEATURES: { icon: LucideIcon; title: string; body: string }[] = [
   {
