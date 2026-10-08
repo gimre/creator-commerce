@@ -122,3 +122,39 @@ test('the sitemap lists a published product and its storefront, not a draft', as
     expect(xml).toContain(`<loc>${BASE_URL}/@${seller.handle}</loc>`)
     expect(xml).not.toContain(`${BASE_URL}${draft.url}`)
 })
+
+test('a published product has a PNG share card; a draft has none', async ({ page, request, seed }) => {
+    // setup
+    const seller = await seed.user({ name: 'SEO Card' })
+    const product = await seed.product(seller, { name: `SEO Card ${seed.tag}` })
+    const draft = await seed.product(seller, { name: `SEO Card Draft ${seed.tag}`, status: 'draft' })
+
+    // run
+    await page.goto(product.url)
+    const cardUrl = await page.locator('meta[property="og:image"]').getAttribute('content')
+    const card = await request.get(cardUrl ?? '')
+    const draftCard = await request.get(`${draft.url}/opengraph-image/card`)
+
+    // assertions
+    expect(cardUrl).toContain(`${product.url}/opengraph-image`)
+    expect(card.status()).toBe(200)
+    expect(card.headers()['content-type']).toBe('image/png')
+    await expect(page.locator('meta[property="og:image:alt"]')).toHaveAttribute('content', product.name)
+    expect(draftCard.status()).toBe(404)
+})
+
+test('a storefront and the landing page have share cards', async ({ page, request, seed }) => {
+    // setup
+    const seller = await seed.user({ name: 'SEO Store Card' })
+
+    // run
+    await page.goto(`/@${seller.handle}`)
+    const storefrontCard = await page.locator('meta[property="og:image"]').getAttribute('content')
+    await page.goto('/')
+    const landingCard = await page.locator('meta[property="og:image"]').getAttribute('content')
+
+    // assertions
+    expect(storefrontCard).toContain(`/@${seller.handle}/opengraph-image`)
+    expect((await request.get(storefrontCard ?? '')).headers()['content-type']).toBe('image/png')
+    expect((await request.get(landingCard ?? '')).headers()['content-type']).toBe('image/png')
+})
