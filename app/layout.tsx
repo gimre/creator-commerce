@@ -26,8 +26,9 @@ const geistMono = Geist_Mono({
 const DEFAULT_TITLE = `${SITE_NAME} — ${SITE_TAGLINE}`;
 
 export const metadata: Metadata = {
-  // Every relative canonical and OG image url resolves against the host this
-  // deployment actually answers on — production domain, preview alias or
+  // Every relative canonical and OG image url resolves against appUrl — one
+  // host per deployment: the production domain on production (even when it
+  // is reached through its *.vercel.app url), the preview's branch alias, or
   // localhost — so no host is written anywhere.
   metadataBase: new URL(appUrl),
   title: { default: DEFAULT_TITLE, template: `%s · ${SITE_NAME}` },

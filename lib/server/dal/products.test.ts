@@ -6,7 +6,7 @@ import { db } from '@/test/seed/db'
 import { useSeedScope } from '@/test/seed/vitest'
 import { listSitemapEntries } from './products'
 
-// eslint-disable-next-line react-hooks/rules-of-hooks
+// eslint-disable-next-line react-hooks/rules-of-hooks -- Vitest helper named use…, not a React hook
 const seed = useSeedScope()
 
 describe('listSitemapEntries', () => {

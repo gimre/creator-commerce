@@ -42,6 +42,14 @@ describe('productJsonLd', () => {
         // assertions
         expect(data).not.toHaveProperty('description')
     })
+
+    it('leaves image out when there are no images', () => {
+        // run
+        const data = productJsonLd({ ...input, imageUrls: [] })
+
+        // assertions
+        expect(data).not.toHaveProperty('image')
+    })
 })
 
 describe('serializeJsonLd', () => {

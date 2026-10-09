@@ -19,7 +19,8 @@ export function productJsonLd(input: ProductJsonLdInput): Record<string, unknown
     '@type': 'Product',
     name: input.name,
     ...(input.description ? { description: input.description } : {}),
-    image: input.imageUrls,
+    // An empty array is not an image; leave the property out instead.
+    ...(input.imageUrls.length > 0 ? { image: input.imageUrls } : {}),
     url: input.url,
     offers: {
       '@type': 'Offer',

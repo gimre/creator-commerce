@@ -253,7 +253,9 @@ adding a `loading.tsx` there turns it into a meta refresh. `productPath` maps
 an empty slug (a name with no ASCII letters) to `product`.
 
 `metadataBase` is `appUrl`, so relative canonicals and OG urls resolve against
-whichever host the deployment answers on. Next merges metadata shallowly: a
+one host per deployment — the production domain on production, even when it
+is reached through its `*.vercel.app` url — not whichever host a request came
+in on. Next merges metadata shallowly: a
 page that sets `openGraph` replaces the root's whole object, so pages spread
 `SITE_OPEN_GRAPH` (`lib/site.ts`) into theirs.
 
