@@ -16,8 +16,11 @@ const nextConfig: NextConfig = {
   // there while working locally. Keys are picomatch globs over the route
   // path, which for a card is e.g. /[handle]/opengraph-image-<hash>/
   // [__metadata_id__]; values are globs from the project root.
+  // Both keys because the generated route's last segment is the metadata
+  // id; the TTFs are ~230 KB.
   outputFileTracingIncludes: {
     '**/opengraph-image*': ['./assets/fonts/**'],
+    '**/opengraph-image*/**': ['./assets/fonts/**'],
   },
   images: {
     // UploadThing serves files from https://<appId>.ufs.sh/f/<key>.
