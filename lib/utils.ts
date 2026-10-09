@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+import { safeDecode } from "@/lib/paths"
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -18,9 +20,11 @@ export function slugify(name: string) {
 }
 
 // "%40gabi" / "@gabi" -> "gabi". The [handle] URL segment carries a leading
-// "@", the user.handle column stores it without one.
+// "@", the user.handle column stores it without one. A malformed escape is
+// kept as-is (safeDecode, lib/paths.ts) rather than throwing, so a bad
+// segment fails the handle lookup and 404s instead of 500ing.
 export function parseHandleSegment(segment: string) {
-  return decodeURIComponent(segment).replace(/^@/, "")
+  return safeDecode(segment).replace(/^@/, "")
 }
 
 // 5_242_880 -> "5 MB". Binary units, because that is what the file-size limit is

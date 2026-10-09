@@ -27,7 +27,7 @@ export function requestedPath(...segments: string[]): string {
   return `/${segments.map(safeDecode).join('/')}`
 }
 
-function safeDecode(segment: string): string {
+export function safeDecode(segment: string): string {
   try {
     return decodeURIComponent(segment)
   } catch {

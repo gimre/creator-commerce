@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { toMetaDescription } from './utils'
+import { parseHandleSegment, toMetaDescription } from './utils'
 
 describe('toMetaDescription', () => {
     it('returns short text unchanged', () => {
@@ -37,5 +37,23 @@ describe('toMetaDescription', () => {
 
         // assertions
         expect(description).toBe('one two…')
+    })
+})
+
+describe('parseHandleSegment', () => {
+    it('keeps a malformed escape as-is instead of throwing', () => {
+        // run
+        const handle = parseHandleSegment('%E0%A4%A')
+
+        // assertions
+        expect(handle).toBe('%E0%A4%A')
+    })
+
+    it('decodes a leading @ out of the segment', () => {
+        // run
+        const handle = parseHandleSegment('%40gabi')
+
+        // assertions
+        expect(handle).toBe('gabi')
     })
 })
