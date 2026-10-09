@@ -260,11 +260,11 @@ A handle is validated on the server, not only by the signup form's `pattern`:
 (`escapeXml`, `lib/seo/xml.ts`), since Next writes `<loc>` verbatim.
 
 `metadataBase` is `appUrl`, so relative canonicals and OG urls resolve against
-one host per deployment — the production domain on production, even when it
-is reached through its `*.vercel.app` url — not whichever host a request came
-in on. Next merges metadata shallowly: a
-page that sets `openGraph` replaces the root's whole object, so pages spread
-`SITE_OPEN_GRAPH` (`lib/site.ts`) into theirs.
+one host per deployment — the production domain on production, even when it is
+reached through its `*.vercel.app` url — not whichever host a request came in
+on. Next merges metadata shallowly: a page that sets `openGraph` replaces the
+root's whole object, so pages spread `SITE_OPEN_GRAPH` (`lib/site.ts`) into
+theirs.
 
 Share cards are `opengraph-image.tsx` files under `app/(public)/`, drawn by
 `next/og` from `lib/server/og/`: colours from `lib/email-theme.generated.ts`
@@ -370,6 +370,7 @@ Migrations run from a laptop, never from the build:
 so the build runs its query. Every environment's build therefore needs
 `PG_CONNECTION_STRING`, and a migration the sitemap query depends on must run
 before the deploy that ships it, or the build fails.
+
 `vercel env pull` writes `.env.local`, which `next dev` loads ahead of `.env`
 — pull only when that override is wanted.
 
@@ -659,11 +660,15 @@ token the token endpoint signs only adds those claims when the granted scope
 includes `profile`/`email` (`mcp/index.mjs`'s `userClaims`), so narrowing here
 is what keeps a connected client from ever receiving either.
 
-Three `hooks.before` on `auth.ts`, each named for what it does. Two of the
-three, `refuseUnconsentedToken` and `refuseForeignConsent`, read
+Four `hooks.before` on `auth.ts`, each named for what it does. Two of the
+four, `refuseUnconsentedToken` and `refuseForeignConsent`, read
 `ctx.context.internalAdapter` directly — internal Better Auth API with no
 stable contract, worth rechecking on an upgrade:
 
+- `refuseInvalidHandle` refuses a `handle` that fails `isValidHandle`
+  (`lib/schemas/auth.ts`) on `/sign-up/email` and `/update-user` —
+  described under "# SEO" above. It reads only `ctx.path` and `ctx.body`,
+  no internal Better Auth API.
 - `forceConsentOnAuthorize` sets `prompt=consent` on `/mcp/authorize` and
   narrows `scope` (above). The plugin shows `/oauth/consent` only when the
   authorize request's `prompt` is exactly `consent`, and MCP clients don't
