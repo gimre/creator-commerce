@@ -203,6 +203,14 @@ ordered by `createdAt`, top 50, no pagination. Three known limits:
   `generateSitemaps` in `app/sitemap.ts` shards it by id range, and
   `listSitemapEntries` takes a range.
 
+- **Changing a handle breaks every shared link.** `handle` is editable
+  (`input: true` on `user.additionalFields`), and a change 404s every
+  previously shared storefront and product url: nothing redirects from the
+  old handle to the new one.
+
+- **`/@handle/<id>` with no slug 404s.** It could redirect to the canonical
+  url the way a stale slug does.
+
 ## Tech debt
 
 - **Extract `productStatus` enum out of the server DB schema.**

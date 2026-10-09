@@ -15,8 +15,9 @@ erased at compile time; importing a value across that line is what the two marke
 exist to catch.
 
 Everything else directly under `lib/` is environment-agnostic and safe on both
-sides: `lib/utils.ts`, `lib/schemas/*`. `lib/actions/*` is its own case — server
-actions, marked with `'use server'`, imported by client components.
+sides: `lib/utils.ts`, `lib/paths.ts`, `lib/site.ts`, `lib/schemas/*`,
+`lib/seo/*`. `lib/actions/*` is its own case — server actions, marked with
+`'use server'`, imported by client components.
 
 **`lib/server/request/`** is the only place under `lib/server/` that may import
 `next/headers`, `next/navigation`, `next/cache` or `next/server`. Its modules
@@ -252,6 +253,12 @@ redirect is a real 308 only because nothing above those pages suspends;
 adding a `loading.tsx` there turns it into a meta refresh. `productPath` maps
 an empty slug (a name with no ASCII letters) to `product`.
 
+A handle is validated on the server, not only by the signup form's `pattern`:
+`refuseInvalidHandle` in `lib/server/auth.ts` rejects one that fails
+`isValidHandle` (`lib/schemas/auth.ts`, the form's `HANDLE_PATTERN` too) on
+`/sign-up/email` and `/update-user`. The sitemap XML-escapes its urls anyway
+(`escapeXml`, `lib/seo/xml.ts`), since Next writes `<loc>` verbatim.
+
 `metadataBase` is `appUrl`, so relative canonicals and OG urls resolve against
 one host per deployment — the production domain on production, even when it
 is reached through its `*.vercel.app` url — not whichever host a request came
@@ -358,6 +365,11 @@ can check for:
 
 Migrations run from a laptop, never from the build:
 `PG_CONNECTION_STRING=<production string> npm run schema:migrations:run`.
+
+`next build` does read the database, though: `app/sitemap.ts` is prerendered,
+so the build runs its query. Every environment's build therefore needs
+`PG_CONNECTION_STRING`, and a migration the sitemap query depends on must run
+before the deploy that ships it, or the build fails.
 `vercel env pull` writes `.env.local`, which `next dev` loads ahead of `.env`
 — pull only when that override is wanted.
 
