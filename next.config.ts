@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
   // webServer sets NEXT_DIST_DIR=.next-e2e so its test server never fights a
   // hand-started `next dev` (default .next) for the same lockfile.
   distDir: process.env.NEXT_DIST_DIR ?? '.next',
+  // The share cards read their TTFs from disk at request time
+  // (lib/server/og/fonts.ts), and a file that isn't in a route's trace isn't
+  // in its serverless function on Vercel — the card would fail to render
+  // there while working locally. Keys are picomatch globs over the route
+  // path, which for a card is e.g. /[handle]/opengraph-image-<hash>/
+  // [__metadata_id__]; values are globs from the project root.
+  outputFileTracingIncludes: {
+    '**/opengraph-image*': ['./assets/fonts/**'],
+  },
   images: {
     // UploadThing serves files from https://<appId>.ufs.sh/f/<key>.
     remotePatterns: [{ protocol: "https", hostname: "**.ufs.sh" }],
