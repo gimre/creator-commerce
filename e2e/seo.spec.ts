@@ -27,9 +27,10 @@ test('the dashboard is noindex and the root title is no longer the placeholder',
     await expect(page).toHaveTitle('Dashboard · Creator Commerce')
 })
 
-// The Location header may be absolute or relative; compare paths.
+// The Location header may be absolute or relative, and Next may percent-encode
+// the @ in it as it does in image urls; compare decoded paths.
 function locationPath(location: string | undefined) {
-    return new URL(location ?? '', BASE_URL).pathname
+    return decodeURIComponent(new URL(location ?? '', BASE_URL).pathname)
 }
 
 test('a storefront without the @ redirects to the canonical url', async ({ request, seed }) => {
@@ -42,6 +43,18 @@ test('a storefront without the @ redirects to the canonical url', async ({ reque
     // assertions
     expect(response.status()).toBe(308)
     expect(locationPath(response.headers().location)).toBe(`/@${seller.handle}`)
+})
+
+test('a storefront requested with a percent-encoded @ is served, not redirected', async ({ request, seed }) => {
+    // setup
+    const seller = await seed.user({ name: 'SEO Encoded' })
+
+    // run: /%40gabi is the same url as /@gabi; comparing it raw would redirect
+    // it to itself forever
+    const response = await request.get(`/%40${seller.handle}`, { maxRedirects: 0 })
+
+    // assertions
+    expect(response.status()).toBe(200)
 })
 
 test('a canonical redirect keeps the query string', async ({ request, seed }) => {
