@@ -12,14 +12,17 @@ type Params = { handle: string }
 // Social platforms cache a card for days anyway; an hour-stale count is fine.
 export const revalidate = 3600
 
+// Static alt, not generateImageMetadata like the product card: with it, this
+// card's route (opengraph-image-<hash>/[__metadata_id__]) sits beside the
+// dynamic [id] directory, and Next 16.2 under Turbopack never compiles it —
+// every request 500s with "Cannot find module for page". Without an id
+// segment the route resolves, as the landing card's does.
+export const alt = `A storefront on ${SITE_NAME}`
+export const size = OG_SIZE
+export const contentType = "image/png"
+
 // Never reads the session: this is its own request, outside the page's
 // owner-only logic. A storefront itself is public, so nothing here is private.
-export async function generateImageMetadata({ params }: { params: Params }) {
-  const seller = await getUserByHandle(parseHandleSegment(params.handle))
-  if (!seller) return []
-  return [{ id: "card", alt: `${seller.name} on ${SITE_NAME}`, size: OG_SIZE, contentType: "image/png" }]
-}
-
 export default async function Image({ params }: { params: Promise<Params> }) {
   const seller = await getUserByHandle(parseHandleSegment((await params).handle))
   if (!seller) return new Response("Not found", { status: 404 })

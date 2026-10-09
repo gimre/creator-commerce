@@ -192,10 +192,13 @@ All three are `opengraph-image.tsx` files returning `ImageResponse` at
   page already redirects to the canonical url, and the card url hangs off it.
 - `export const revalidate = 3600`. Social platforms cache cards for days
   anyway; an hour-stale price on a card is acceptable.
-- Alt text through `generateImageMetadata`, returning one image with
-  `alt: product.name` / `alt: \`${user.name} on Creator Commerce\``, so it is
-  not one fixed string. That puts the card at
-  `…/opengraph-image/<id>`; Next emits the url, nothing hardcodes it.
+- The product card's alt text comes through `generateImageMetadata`
+  (`alt: product.name`), which puts it at `…/opengraph-image-<hash>/<id>`;
+  Next emits the url, nothing hardcodes it. The storefront card uses a
+  static `alt` export instead: a `generateImageMetadata` card in `[handle]`
+  sits beside the dynamic `[id]` directory, and Next 16.2 under Turbopack
+  never compiles that route (every request 500s, "Cannot find module for
+  page").
 
 The DAL reads they need: the product card can use `getStorefrontProduct(id,
 ownerId, { includeDrafts: false })` after `getUserByHandle`; the storefront
