@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
 
-import { loadCover } from './cover'
+import { loadCover, MAX_COVER_BYTES } from './cover'
 
 function stubFetch(response: Response | Error) {
     vi.stubGlobal('fetch', vi.fn(async () => {
@@ -58,5 +58,44 @@ describe('loadCover', () => {
         // assertions
         expect(cover).toBeNull()
         expect(fetch).not.toHaveBeenCalled()
+    })
+
+    it('returns null without reading the body when content-length is over the cap', async () => {
+        // setup
+        const response = new Response(new Uint8Array([1]), {
+            headers: { 'content-type': 'image/png', 'content-length': String(MAX_COVER_BYTES + 1) },
+        })
+        const read = vi.spyOn(response, 'arrayBuffer')
+        stubFetch(response)
+
+        // run
+        const cover = await loadCover('https://app.ufs.sh/f/a')
+
+        // assertions
+        expect(cover).toBeNull()
+        expect(read).not.toHaveBeenCalled()
+    })
+
+    it('returns null when the body read is over the cap', async () => {
+        // setup: no content-length to check up front
+        stubFetch(new Response(new Uint8Array(MAX_COVER_BYTES + 1), { headers: { 'content-type': 'image/png' } }))
+
+        // run
+        const cover = await loadCover('https://app.ufs.sh/f/a')
+
+        // assertions
+        expect(cover).toBeNull()
+    })
+
+    it('fetches with an abort signal, so a slow host cannot hold the card', async () => {
+        // setup
+        stubFetch(new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/png' } }))
+
+        // run
+        await loadCover('https://app.ufs.sh/f/a')
+
+        // assertions
+        const init = vi.mocked(fetch).mock.calls[0][1]
+        expect(init?.signal).toBeInstanceOf(AbortSignal)
     })
 })

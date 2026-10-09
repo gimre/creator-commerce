@@ -160,16 +160,21 @@ All three are `opengraph-image.tsx` files returning `ImageResponse` at
   `content-type` is `image/png` or `image/jpeg`, else `null`. Satori's decoding
   of WebP/AVIF is not something to rely on; an unsupported cover renders the
   no-cover variant rather than a broken card. Verify this against a real
-  UploadThing upload during implementation.
+  UploadThing upload during implementation. The fetch is bounded: a 3 s
+  timeout (`AbortSignal.timeout`) and a 5 MB cap (`MAX_COVER_BYTES`), checked
+  on `content-length` before reading and on the body after; past either, it
+  returns `null` too.
 
 **Cards:**
 
 - `app/(public)/opengraph-image.tsx` — landing. Wordmark, the hero line
   ("Sell your digital products in minutes"), `SITE_DESCRIPTION`. Reads no data;
   prerendered at build.
-- `app/(public)/[handle]/opengraph-image.tsx` — storefront. Avatar if the
-  seller has one, name, `@handle`, bio (through `toMetaDescription`), and the
-  count of published products. Inherited by nested routes unless overridden.
+- `app/(public)/[handle]/opengraph-image.tsx` — storefront. The seller's
+  initial in a circle, name, `@handle`, bio (through `toMetaDescription`), and
+  the count of published products. Never the avatar: `user.image` is any url a
+  user sets, and an unauthenticated card request would fetch it. Inherited by
+  nested routes unless overridden.
 - `app/(public)/[handle]/[id]/[slug]/opengraph-image.tsx` — product. Cover on
   the left (or a brand-coloured panel with a file icon when `loadCover` returns
   `null` or there are no images), name, `formatPrice(priceInCents)` and

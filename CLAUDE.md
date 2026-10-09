@@ -262,8 +262,12 @@ Share cards are `opengraph-image.tsx` files under `app/(public)/`, drawn by
 (Satori parses `oklch()` no better than an email client), fonts from
 `assets/fonts/`. The storefront and product cards read published rows only and
 never the session — they are separate requests outside the page's owner-only
-draft logic. `loadCover` draws only PNG and JPEG and falls back to a
-placeholder for anything else. Cards are plain elements only: Satori calls
+draft logic. The storefront card shows the seller's initial, never their
+avatar: `user.image` is any url a user cares to set, and the card is an
+unauthenticated request that would fetch it. The product card's cover goes
+through `loadCover`, which draws only PNG and JPEG, gives up after a 3 s
+timeout or past 5 MB (`MAX_COVER_BYTES`), and falls back to a placeholder in
+every one of those cases. Cards are plain elements only: Satori calls
 components directly rather than rendering them, so a client component or
 one using hooks — every `lucide-react` icon, for one — crashes the card;
 the product placeholder draws its icon as a raw `<svg>` for that reason.
