@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { getSellerProductCounts } from '@/lib/server/dal/products'
 import { sellerHasSale } from '@/lib/server/dal/purchases'
 import { getAccountBasics } from '@/lib/server/dal/users'
-import { storefrontLink } from '@/lib/server/tools/shared'
 import { defineTool } from '@/lib/server/tools/types'
+import { storefrontPath } from '@/lib/paths'
 
 // Computed here rather than left to the model: it is a rule over counts, and
 // a rule is more reliable as code than as an instruction.
@@ -33,7 +33,7 @@ export const getAccountStatus = defineTool({
     return {
       name: account.name,
       handle: account.handle,
-      storefrontLink: storefrontLink(account.handle),
+      storefrontLink: storefrontPath(account.handle),
       emailVerified: account.emailVerified,
       products: counts,
       hasFirstSale,

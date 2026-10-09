@@ -4,6 +4,7 @@ import { Download } from "lucide-react"
 
 import { getBuyerPurchases } from "@/lib/server/dal/purchases"
 import { requireUser } from "@/lib/server/request/session"
+import { productPath, storefrontPath } from "@/lib/paths"
 import { TableCard } from "@/components/table-card"
 import { Button } from "@/components/ui/button"
 import {
@@ -77,7 +78,7 @@ export default async function PurchasesPage() {
                       The two can differ after a rename — what was bought is the
                       row, where it lives is the link. */}
                   <Link
-                    href={`/@${purchase.sellerHandle}/${purchase.productId}/${purchase.productSlug}`}
+                    href={productPath(purchase.sellerHandle, purchase.productId, purchase.productSlug)}
                     className="block max-w-[420px] truncate hover:underline"
                   >
                     {purchase.productName}
@@ -87,7 +88,7 @@ export default async function PurchasesPage() {
                   {/* Stored without the leading "@"; the url and the label both
                       add it back. */}
                   <Link
-                    href={`/@${purchase.sellerHandle}`}
+                    href={storefrontPath(purchase.sellerHandle)}
                     className="hover:underline"
                   >
                     @{purchase.sellerHandle}

@@ -13,6 +13,7 @@ import { nextCookies } from 'better-auth/next-js';
 import { mcp } from 'better-auth/plugins';
 
 import { appOrigins, appUrl } from '@/lib/server/app-url';
+import { isValidHandle } from '@/lib/schemas/auth';
 import { deleteUserOAuthTokens } from '@/lib/server/dal/oauth-clients';
 import db from '@/lib/server/db';
 import * as authSchema from '@/lib/server/db/schemas/auth';
@@ -216,6 +217,30 @@ export const auth = betterAuth({
           });
         }
       }
+
+      // handle is an input field (user.additionalFields), so Better Auth
+      // takes whatever string a client sends; the form's `pattern` is only
+      // the browser's courtesy. A handle lands in urls, share cards and the
+      // sitemap's XML, so the rule is enforced here, on both endpoints that
+      // can set it. ctx.body is the router's parsed body at this point (the
+      // endpoint's own schema validation hasn't run yet), and an APIError
+      // thrown from a before hook reaches the router's catch and becomes the
+      // response (better-call's router.mjs). A missing handle on
+      // /update-user is an update that doesn't change it; on /sign-up/email
+      // the field is required: true and the endpoint rejects it itself.
+      async function refuseInvalidHandle() {
+        if (ctx.path !== '/sign-up/email' && ctx.path !== '/update-user') return;
+        const handle: unknown = ctx.body?.handle;
+        if (handle === undefined) return;
+        if (typeof handle !== 'string' || !isValidHandle(handle)) {
+          throw new APIError('BAD_REQUEST', {
+            message:
+              'Handle must be 3–30 characters: lowercase letters, numbers, - or _.',
+          });
+        }
+      }
+
+      await refuseInvalidHandle();
 
       return (
         (await forceConsentOnAuthorize()) ??

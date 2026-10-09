@@ -524,12 +524,14 @@ export async function getStorefrontProducts(
     .orderBy(asc(productsTable.createdAt), asc(productsTable.id))
 }
 
-// Only what the single product page renders. No slug: that page links back to
-// the storefront by handle alone and never needs its own. Same reasoning as
-// StorefrontProduct above for leaving the file columns out — a public product
-// page is exactly the page a stolen fileKey would be most useful on.
+// Only what the single product page renders, plus `slug`: the page redirects
+// any other spelling of its url to productPath(handle, id, slug), so it needs
+// the canonical slug to compare against. Same reasoning as StorefrontProduct
+// above for leaving the file columns out — a public product page is exactly
+// the page a stolen fileKey would be most useful on.
 export type StorefrontProductDetail = {
   id: number
+  slug: string
   name: string
   description: string | null
   priceInCents: number
@@ -550,6 +552,7 @@ export async function getStorefrontProduct(
   const [product] = await db
     .select({
       id: productsTable.id,
+      slug: productsTable.slug,
       name: productsTable.name,
       description: productsTable.description,
       priceInCents: productsTable.priceInCents,
@@ -568,6 +571,40 @@ export async function getStorefrontProduct(
     .limit(1)
 
   return product ?? null
+}
+
+export type SitemapProduct = {
+  id: number
+  slug: string
+  handle: string
+  images: string[]
+  updatedAt: Date
+}
+
+/**
+ * Every product a crawler may index: published, not deleted, with the handle
+ * its url is built from. Not scoped to an owner — the sitemap is the whole
+ * public catalogue, which is exactly what the storefront pages already show to
+ * anyone. Ordered by id so the file is stable between rebuilds.
+ */
+export async function listSitemapEntries(): Promise<SitemapProduct[]> {
+  return db
+    .select({
+      id: productsTable.id,
+      slug: productsTable.slug,
+      handle: user.handle,
+      images: productsTable.images,
+      updatedAt: productsTable.updatedAt,
+    })
+    .from(productsTable)
+    .innerJoin(user, eq(productsTable.ownerId, user.id))
+    .where(
+      and(
+        eq(productsTable.status, 'published'),
+        isNull(productsTable.deletedAt),
+      ),
+    )
+    .orderBy(asc(productsTable.id))
 }
 
 // Only the fields the explore grid renders, plus the seller identity its links

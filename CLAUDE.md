@@ -15,8 +15,9 @@ erased at compile time; importing a value across that line is what the two marke
 exist to catch.
 
 Everything else directly under `lib/` is environment-agnostic and safe on both
-sides: `lib/utils.ts`, `lib/schemas/*`. `lib/actions/*` is its own case — server
-actions, marked with `'use server'`, imported by client components.
+sides: `lib/utils.ts`, `lib/paths.ts`, `lib/site.ts`, `lib/schemas/*`,
+`lib/seo/*`. `lib/actions/*` is its own case — server actions, marked with
+`'use server'`, imported by client components.
 
 **`lib/server/request/`** is the only place under `lib/server/` that may import
 `next/headers`, `next/navigation`, `next/cache` or `next/server`. Its modules
@@ -232,6 +233,58 @@ visitor running an ad blocker who buys lands in the numerator and never the
 denominator, so the rate reads high rather than low. It is clamped to 100% as
 a safety net for that case.
 
+# SEO
+
+Only the landing page, storefronts and product pages are meant to be indexed.
+`app/robots.ts` lets crawlers in on production only (`isProductionDeployment`
+in `lib/server/app-url.ts`) and points them at `app/sitemap.ts`, which lists
+storefronts with at least one published product and every published product
+(`listSitemapEntries`). Private pages are kept out with `robots: { index:
+false }` in their layouts — `(master)`, `(auth)`, `cart`, `checkout` — not a
+robots.txt `Disallow`: a disallowed url can still be indexed from inbound
+links, and a crawler only sees noindex on a page it may fetch. A new private
+route group needs the same metadata.
+
+Every public url is built by `lib/paths.ts` — `storefrontPath`, `productPath`
+— and each page has exactly one. The storefront and product pages compare
+`requestedPath(...)` against it and `permanentRedirect()` (308) on any
+difference: `/gabi` → `/@gabi`, a stale slug after a rename, a padded id. The
+redirect is a real 308 only because nothing above those pages suspends;
+adding a `loading.tsx` there turns it into a meta refresh. `productPath` maps
+an empty slug (a name with no ASCII letters) to `product`.
+
+A handle is validated on the server, not only by the signup form's `pattern`:
+`refuseInvalidHandle` in `lib/server/auth.ts` rejects one that fails
+`isValidHandle` (`lib/schemas/auth.ts`, the form's `HANDLE_PATTERN` too) on
+`/sign-up/email` and `/update-user`. The sitemap XML-escapes its urls anyway
+(`escapeXml`, `lib/seo/xml.ts`), since Next writes `<loc>` verbatim.
+
+`metadataBase` is `appUrl`, so relative canonicals and OG urls resolve against
+one host per deployment — the production domain on production, even when it is
+reached through its `*.vercel.app` url — not whichever host a request came in
+on. Next merges metadata shallowly: a page that sets `openGraph` replaces the
+root's whole object, so pages spread `SITE_OPEN_GRAPH` (`lib/site.ts`) into
+theirs.
+
+Share cards are `opengraph-image.tsx` files under `app/(public)/`, drawn by
+`next/og` from `lib/server/og/`: colours from `lib/email-theme.generated.ts`
+(Satori parses `oklch()` no better than an email client), fonts from
+`assets/fonts/`. The storefront and product cards read published rows only and
+never the session — they are separate requests outside the page's owner-only
+draft logic. The storefront card shows the seller's initial, never their
+avatar: `user.image` is any url a user cares to set, and the card is an
+unauthenticated request that would fetch it. The product card's cover goes
+through `loadCover`, which draws only PNG and JPEG, gives up after a 3 s
+timeout or past 5 MB (`MAX_COVER_BYTES`), and falls back to a placeholder in
+every one of those cases. Cards are plain elements only: Satori calls
+components directly rather than rendering them, so a client component or
+one using hooks — every `lucide-react` icon, for one — crashes the card;
+the product placeholder draws its icon as a raw `<svg>` for that reason.
+
+Product pages carry `Product` JSON-LD (`lib/seo/json-ld.ts`), always emitted
+through `serializeJsonLd`, which escapes `<`: names and descriptions are
+seller-written, and a `</script>` in one would otherwise close the tag.
+
 # Uploads
 
 Both kinds of upload are staged before they belong to anything, so a product
@@ -312,6 +365,12 @@ can check for:
 
 Migrations run from a laptop, never from the build:
 `PG_CONNECTION_STRING=<production string> npm run schema:migrations:run`.
+
+`next build` does read the database, though: `app/sitemap.ts` is prerendered,
+so the build runs its query. Every environment's build therefore needs
+`PG_CONNECTION_STRING`, and a migration the sitemap query depends on must run
+before the deploy that ships it, or the build fails.
+
 `vercel env pull` writes `.env.local`, which `next dev` loads ahead of `.env`
 — pull only when that override is wanted.
 
@@ -601,11 +660,15 @@ token the token endpoint signs only adds those claims when the granted scope
 includes `profile`/`email` (`mcp/index.mjs`'s `userClaims`), so narrowing here
 is what keeps a connected client from ever receiving either.
 
-Three `hooks.before` on `auth.ts`, each named for what it does. Two of the
-three, `refuseUnconsentedToken` and `refuseForeignConsent`, read
+Four `hooks.before` on `auth.ts`, each named for what it does. Two of the
+four, `refuseUnconsentedToken` and `refuseForeignConsent`, read
 `ctx.context.internalAdapter` directly — internal Better Auth API with no
 stable contract, worth rechecking on an upgrade:
 
+- `refuseInvalidHandle` refuses a `handle` that fails `isValidHandle`
+  (`lib/schemas/auth.ts`) on `/sign-up/email` and `/update-user` —
+  described under "# SEO" above. It reads only `ctx.path` and `ctx.body`,
+  no internal Better Auth API.
 - `forceConsentOnAuthorize` sets `prompt=consent` on `/mcp/authorize` and
   narrows `scope` (above). The plugin shows `/oauth/consent` only when the
   authorize request's `prompt` is exactly `consent`, and MCP clients don't

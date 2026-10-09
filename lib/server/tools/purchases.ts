@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { APP_CURRENCY } from '@/lib/currency'
 import { getBuyerDownloads } from '@/lib/server/dal/downloads'
 import { getBuyerPurchases } from '@/lib/server/dal/purchases'
-import { productPageLink } from '@/lib/server/tools/shared'
 import { defineTool } from '@/lib/server/tools/types'
+import { productPath } from '@/lib/paths'
 
 const DOWNLOADS_LIMIT = 25
 
@@ -29,7 +29,7 @@ export const listMyPurchases = defineTool({
         sellerHandle: p.sellerHandle,
         priceInCents: p.priceInCents,
         purchasedAt: p.createdAt.toISOString(),
-        productLink: productPageLink(p.sellerHandle, p.productId, p.productSlug),
+        productLink: productPath(p.sellerHandle, p.productId, p.productSlug),
       })),
       allPurchasesLink: '/purchases',
     }

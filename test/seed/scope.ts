@@ -17,6 +17,7 @@ import { inArray, like, or } from 'drizzle-orm'
 import { account, user } from '@/lib/server/db/schemas/auth'
 import { productsTable, type ProductStatus } from '@/lib/server/db/schemas/product'
 import { purchasesTable } from '@/lib/server/db/schemas/purchase'
+import { productPath } from '@/lib/paths'
 import { slugify } from '@/lib/utils'
 import { db } from './db'
 
@@ -78,7 +79,7 @@ export function createSeedScope(): SeedScope {
                 name: productName,
                 slug,
                 priceInCents,
-                url: `/@${owner.handle}/${row.id}/${slug}`,
+                url: productPath(owner.handle, row.id, slug),
             }
         },
 

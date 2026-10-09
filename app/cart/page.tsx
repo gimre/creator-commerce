@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { formatPrice } from "@/lib/currency"
+import { productPath } from "@/lib/paths"
 import { groupCartBySeller, type SellerCartGroup } from "@/lib/analytics/cart"
 import { RemoveFromCartButton } from "./remove-from-cart-button"
 import { CheckoutButton } from "./checkout-button"
@@ -146,7 +147,7 @@ function CartLine({
       />
       <div className="flex flex-1 flex-col gap-0.5">
         <Link
-          href={`/@${product.sellerHandle}/${product.id}/${product.slug}`}
+          href={productPath(product.sellerHandle, product.id, product.slug)}
           className="font-heading text-[15px] font-medium hover:underline"
         >
           {product.name}

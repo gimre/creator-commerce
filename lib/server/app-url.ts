@@ -61,3 +61,9 @@ export const appOrigins: string[] = Array.from(
       .filter((origin): origin is string => origin !== undefined),
   ]),
 )
+
+/**
+ * True only on Vercel's production environment. Previews and local dev are
+ * not: robots.ts tells crawlers to stay out of everything else.
+ */
+export const isProductionDeployment = process.env.VERCEL_ENV === 'production'

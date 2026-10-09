@@ -5,8 +5,9 @@ import { z } from 'zod'
 import { productStatus } from '@/lib/server/db/schemas/product'
 import { listOwnerProductSummaries, getUserProduct } from '@/lib/server/dal/products'
 import { getAccountBasics } from '@/lib/server/dal/users'
-import { productEditLink, productPageLink, truncate } from '@/lib/server/tools/shared'
+import { productEditLink, truncate } from '@/lib/server/tools/shared'
 import { defineTool } from '@/lib/server/tools/types'
+import { productPath } from '@/lib/paths'
 
 const PRODUCT_LIST_LIMIT = 25
 const DESCRIPTION_LIMIT = 1000
@@ -80,7 +81,7 @@ export const getMyProduct = defineTool({
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),
       editLink: productEditLink(product.id),
-      pageLink: productPageLink(account.handle, product.id, product.slug),
+      pageLink: productPath(account.handle, product.id, product.slug),
     }
   },
 })

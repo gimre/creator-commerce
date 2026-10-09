@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ExternalLink } from "lucide-react"
 
 import { requireUser } from "@/lib/server/request/session"
+import { storefrontPath } from "@/lib/paths"
 import { getInitials } from "@/lib/utils"
 import { Logo, Wordmark } from "@/components/logo"
 import {
@@ -65,7 +66,7 @@ export async function DashboardShell({
           <div className="flex-1" />
           <CeceLauncher />
           <CartBadge />
-          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/@${user.handle}`} />}>
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link href={storefrontPath(user.handle)} />}>
             <ExternalLink /> View storefront
           </Button>
         </header>
