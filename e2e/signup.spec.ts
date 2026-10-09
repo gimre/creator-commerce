@@ -37,4 +37,5 @@ test('signing up through the API with an invalid handle is refused', async ({ re
 
     // assertions
     expect(response.status()).toBe(400)
+    expect((await response.json()).message).toContain('Handle must be')
 })

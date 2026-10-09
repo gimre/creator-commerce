@@ -78,7 +78,9 @@ describe('loadCover', () => {
 
     it('returns null when the body read is over the cap', async () => {
         // setup: no content-length to check up front
-        stubFetch(new Response(new Uint8Array(MAX_COVER_BYTES + 1), { headers: { 'content-type': 'image/png' } }))
+        const response = new Response(new Uint8Array(MAX_COVER_BYTES + 1), { headers: { 'content-type': 'image/png' } })
+        expect(response.headers.get('content-length')).toBeNull()
+        stubFetch(response)
 
         // run
         const cover = await loadCover('https://app.ufs.sh/f/a')
