@@ -44,6 +44,20 @@ test('a storefront without the @ redirects to the canonical url', async ({ reque
     expect(locationPath(response.headers().location)).toBe(`/@${seller.handle}`)
 })
 
+test('a canonical redirect keeps the query string', async ({ request, seed }) => {
+    // setup
+    const seller = await seed.user({ name: 'SEO Query' })
+
+    // run
+    const response = await request.get(`/${seller.handle}?utm_source=x`, { maxRedirects: 0 })
+
+    // assertions
+    expect(response.status()).toBe(308)
+    const location = new URL(response.headers().location ?? '', BASE_URL)
+    expect(decodeURIComponent(location.pathname)).toBe(`/@${seller.handle}`)
+    expect(location.search).toBe('?utm_source=x')
+})
+
 test('a product url with the wrong slug or a padded id redirects to the canonical url', async ({ request, seed }) => {
     // setup
     const seller = await seed.user({ name: 'SEO Slug' })

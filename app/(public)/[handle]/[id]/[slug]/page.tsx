@@ -22,7 +22,7 @@ import { ProductGallery } from "@/components/product-gallery"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { formatPrice } from "@/lib/currency"
-import { productPath, requestedPath, storefrontPath } from "@/lib/paths"
+import { productPath, requestedPath, storefrontPath, withSearchParams } from "@/lib/paths"
 import { productJsonLd, serializeJsonLd } from "@/lib/seo/json-ld"
 import { SITE_OPEN_GRAPH } from "@/lib/site"
 import { parseHandleSegment, toMetaDescription } from "@/lib/utils"
@@ -77,6 +77,7 @@ export async function generateMetadata({
 
 export default async function ProductPage({
   params,
+  searchParams,
 }: PageProps<"/[handle]/[id]/[slug]">) {
   const { handle, id, slug } = await params
   const found = await findProduct(handle, id)
@@ -90,9 +91,10 @@ export default async function ProductPage({
   // (012) or a handle without its @ would otherwise render this same page —
   // and a rename changes the slug, which must not break links already shared.
   // All of them 308 to the canonical url, which carries the ranking with it.
+  // The query rides along (a shared link's ?utm_…); the canonical tag has none.
   const canonical = productPath(user.handle, product.id, product.slug)
   if (requestedPath(handle, id, slug) !== canonical) {
-    permanentRedirect(canonical)
+    permanentRedirect(withSearchParams(canonical, await searchParams))
   }
 
   const isDraft = product.status === "draft"

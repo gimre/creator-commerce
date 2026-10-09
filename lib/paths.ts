@@ -34,3 +34,23 @@ function safeDecode(segment: string): string {
     return segment
   }
 }
+
+// A path with the request's query carried over, for a canonical-url redirect:
+// the redirect fixes the path, and a `?utm_…` on a shared link is not the
+// redirect's to drop. Array values (a repeated key) stay repeated, undefined
+// values are skipped, and an empty query adds no `?`. The canonical tag itself
+// stays query-less — this is only for where the visitor lands.
+export function withSearchParams(
+  path: string,
+  searchParams: Record<string, string | string[] | undefined>,
+): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(searchParams)) {
+    if (value === undefined) continue
+    for (const item of Array.isArray(value) ? value : [value]) {
+      query.append(key, item)
+    }
+  }
+  const search = query.toString()
+  return search ? `${path}?${search}` : path
+}
