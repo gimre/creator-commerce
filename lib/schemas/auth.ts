@@ -109,3 +109,21 @@ export function oauthAuthorizeQuery(
 }
 
 export const OAUTH_AUTHORIZE_PATH = '/api/auth/mcp/authorize'
+
+/**
+ * What a storefront handle may contain, in the string form an HTML `pattern`
+ * attribute takes (the browser anchors it itself). The signup form and the
+ * server-side check in lib/server/auth.ts both read it, so the two can never
+ * disagree.
+ */
+export const HANDLE_PATTERN = '[a-z0-9_-]{3,30}'
+
+const HANDLE_REGEX = new RegExp(`^${HANDLE_PATTERN}$`)
+
+/**
+ * Whether a handle is allowed. A handle lands in urls, the sitemap's XML and
+ * share cards, so this is the server's rule, not just the form's.
+ */
+export function isValidHandle(handle: string): boolean {
+  return HANDLE_REGEX.test(handle)
+}

@@ -8,6 +8,7 @@ import { signUp } from "@/lib/client/auth"
 import { identifyUser } from "@/lib/client/posthog"
 import {
   authPathWithNext,
+  HANDLE_PATTERN,
   OAUTH_AUTHORIZE_PATH,
   PASSWORD_MIN_LENGTH,
 } from "@/lib/schemas/auth"
@@ -96,7 +97,7 @@ export function SignupForm({
             id="handle"
             name="handle"
             placeholder="gabi"
-            pattern="[a-z0-9_-]{3,30}"
+            pattern={HANDLE_PATTERN}
             title="3–30 characters: lowercase letters, numbers, hyphens or underscores."
             required
           />

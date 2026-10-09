@@ -3,6 +3,7 @@ import type { MetadataRoute } from "next"
 import { productPath, storefrontPath } from "@/lib/paths"
 import { appUrl } from "@/lib/server/app-url"
 import { listSitemapEntries } from "@/lib/server/dal/products"
+import { escapeXml } from "@/lib/seo/xml"
 
 // Rebuilt at most hourly. Note it is prerendered at build, so a build reads
 // the database once — PG_CONNECTION_STRING is set on every Vercel environment.
@@ -23,16 +24,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  // Next writes each url into <loc> verbatim, unescaped, so every url is
+  // escaped here. A handle is validated on the server (refuseInvalidHandle in
+  // lib/server/auth.ts) and a valid one holds none of these characters, so
+  // ordinary urls come out unchanged — this is for whatever slipped past.
   return [
-    { url: appUrl },
+    { url: escapeXml(appUrl) },
     ...Array.from(storefronts, ([handle, lastModified]) => ({
-      url: `${appUrl}${storefrontPath(handle)}`,
+      url: escapeXml(`${appUrl}${storefrontPath(handle)}`),
       lastModified,
     })),
     ...products.map((product) => ({
-      url: `${appUrl}${productPath(product.handle, product.id, product.slug)}`,
+      url: escapeXml(`${appUrl}${productPath(product.handle, product.id, product.slug)}`),
       lastModified: product.updatedAt,
-      images: product.images,
+      images: product.images.map(escapeXml),
     })),
   ]
 }
